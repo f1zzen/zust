@@ -1,0 +1,43 @@
+﻿
+Config: general (SIMPLE FAKE).bat (Type: standard)
+  DiscordMain : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  DiscordUpdates : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeWeb : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeShort : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeImage : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeVideoRedirect : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  GoogleMain : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  CloudflareCDN : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  CloudflareDNS1111 :  | Ping: Timeout
+  CloudflareDNS1001 :  | Ping: Timeout
+  GoogleDNS8888 :  | Ping: Timeout
+  GoogleDNS8844 :  | Ping: Timeout
+  Quad9DNS9999 :  | Ping: Timeout
+
+Config: general (SIMPLE FAKE ALT2).bat (Type: standard)
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  DiscordUpdates : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeWeb : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeShort : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeImage : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  YouTubeVideoRedirect : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  GoogleMain : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  UNKNOWN : HTTP:ERROR | Ping: Timeout
+  CloudflareWeb : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  CloudflareCDN : HTTP:ERROR TLS1.2:ERROR TLS1.3:ERROR | Ping: Timeout
+  CloudflareDNS1111 :  | Ping: Timeout
+  CloudflareDNS1001 :  | Ping: Timeout
+  GoogleDNS8888 :  | Ping: Timeout
+  GoogleDNS8844 :  | Ping: Timeout
+  Quad9DNS9999 :  | Ping: Timeout
+
+=== ANALYTICS ===
+general (SIMPLE FAKE).bat : HTTP OK: 0, ERR: 28, UNSUP: 0, Ping OK: 0, Fail: 17
+general (SIMPLE FAKE ALT2).bat : HTTP OK: 0, ERR: 28, UNSUP: 0, Ping OK: 0, Fail: 17
+Best strategy: general (SIMPLE FAKE).bat

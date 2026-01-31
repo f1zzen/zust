@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:path:default",
+    "core:event:default",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
+    "core:window:allow-maximize",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-toggle-maximize",
+    "opener:default",
+    "core:webview:allow-internal-toggle-devtools",
+    "dialog:allow-open",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
+  ]
+}

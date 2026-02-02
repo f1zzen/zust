@@ -55,7 +55,7 @@
 
 На данный момент довольно-таки пустовато.. Но пока проект находится в стадии **BETA**-тестирования, и будет доработан в ходе дальнейших нахождения проблем и бла-бла-бла. Текущий список на будущее:
 
-- [ ] Добавить обход через hosts
+- [X] Добавить обход через hosts
 - [ ] Автоматически обновлять bin-арники для zapret (включая стратегии)
 - [ ] Добавить порт на линукс
 - [ ] ..и по мелочам
@@ -77,4 +77,8 @@
 
 > Огромная благодарность создателю [zapret](https://github.com/bol-van/zapret) | [bolvan](https://github.com/bol-van/) и [flowseal](https://github.com/Flowseal/) за [zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube/) ( ´ ꒳ ` ) ♡
 
-> Для связи/поддержки проекта напишите в личные сообщения [каналу в Telegram](https://t.me/fizzeeen). o(>< )o
+> Ещё одна благодарность создателю [info.dns.malw.link](https://info.dns.malw.link/hosts) | [malware](https://malw.link/) за способ обхода через hosts! (☆ω☆)
+
+> Поддержать (некоторых) людей выше можно тут: [malware](https://boosty.to/notmalware), [bol-van](https://boosty.to/notmalware)
+
+> Для предложений или желании помочь проекту напишите в [канал Telegram](https://t.me/fizzeeen). o(>< )o

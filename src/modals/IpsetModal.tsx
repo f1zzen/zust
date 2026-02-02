@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { useModalAnimation } from "./useModalAnimation";
 
 interface Props {
     isOpen: boolean;
@@ -21,11 +22,12 @@ const DESCRIPTIONS: Record<string, string> = {
 };
 
 export const IpsetModal = (p: Props) => {
-    if (!p.isOpen) return null;
+    const { shouldRender, isAnimatingOut } = useModalAnimation(p.isOpen);
+    if (!shouldRender) return null;
 
     return (
-        <div className="modal-overlay" onClick={p.onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className={`modal-overlay ${isAnimatingOut ? 'closing' : ''}`} onClick={p.onClose}>
+            <div className="modal-content ipset-modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3>{p.ipsetView === 'main' ? 'Режим фильтрации' : 'Пользовательские списки'}</h3>
                 </div>
@@ -99,7 +101,7 @@ export const IpsetModal = (p: Props) => {
                     </div>
                 </div>
 
-                <button className="close-modal-btn" onClick={p.onClose}>Закрыть</button>
+                <button className="close-modal-btn" style={{ marginTop: '10px' }} onClick={p.onClose}>Закрыть</button>
             </div>
         </div>
     );

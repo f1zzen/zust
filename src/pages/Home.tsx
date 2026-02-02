@@ -7,6 +7,7 @@ export const HomePage = ({
     setIsSelectorOpen,
     setIsConvertOpen,
     setIsIpsetModalOpen,
+    setIsHostsModalOpen,
 }: any) => (
     <div className="content">
         <div className="strategy-header">
@@ -33,6 +34,19 @@ export const HomePage = ({
         </div>
 
         <div className="action-buttons">
+            <button className="wide-btn" onClick={() => setIsHostsModalOpen(true)}>
+                <div className="btn-content">
+                    <span className="btn-icon">📋</span>
+                    <div className="btn-text">
+                        <span className="btn-title">Файлы hosts</span>
+                        <span className="btn-subtitle">Доступ к Gemini, СhatGPT, Spotify и т.п!</span>
+                    </div>
+                </div>
+                <span className="btn-arrow">→</span>
+            </button>
+            <div className="separator">
+                <span>Zapret</span>
+            </div>
             <button className="wide-btn" onClick={() => setIsIpsetModalOpen(true)}>
                 <div className="btn-content">
                     <span className="btn-icon">🌐</span>

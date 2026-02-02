@@ -7,6 +7,7 @@ import { NotificationProvider } from './Notifications';
 import { StrategyModal } from "./modals/StrategyModal"
 import { IpsetModal } from "./modals/IpsetModal"
 import { ConvertModal } from "./modals/ConvertModal"
+import { HostsModal } from "./modals/HostsModal"
 import { Logic } from "./Logic";
 
 const PAGE_INDEX: Record<string, number> = { home: 0, settings: 1, editor: 2, credits: 3 };
@@ -81,6 +82,7 @@ function App() {
                 loadConfigs={actions.loadIpsetConfigs}
                 setIsConvertOpen={prefs.setIsConvertOpen}
                 setIsIpsetModalOpen={prefs.setIsIpsetModalOpen}
+                setIsHostsModalOpen={prefs.setIsHostsModalOpen}
                 handleToggle={() => zapret.status === 'stopped' ? zapret.startProcess() : zapret.stopProcess()}
               />
             </div>
@@ -113,6 +115,7 @@ function App() {
         hoveredDesc={state.hoveredDesc}
         setHoveredDesc={prefs.setHoveredDesc}
       />
+      <HostsModal isOpen={state.isHostsModalOpen} onClose={() => prefs.setIsHostsModalOpen(false)} />
     </div>
   );
 }

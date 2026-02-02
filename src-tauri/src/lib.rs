@@ -3,6 +3,8 @@ use settings::Settings;
 use std::{fs, path::PathBuf};
 mod settings;
 mod utils;
+use crate::utils::Hosts;
+use std::collections::HashMap;
 use std::process::Command;
 use tauri::{
     Manager,
@@ -97,6 +99,21 @@ async fn convert_multiple_bats(paths: Vec<String>, app: tauri::AppHandle) -> Res
     utils::convert_multiple_bats(&app, paths).await
 }
 
+#[tauri::command]
+async fn get_hosts_data(app: tauri::AppHandle) -> Result<HashMap<String, Vec<String>>, String> {
+    let raw = Hosts::fetch(&app).await?;
+    Ok(Hosts::get_categories(&raw))
+}
+
+#[tauri::command]
+async fn save_hosts_selection(
+    app: tauri::AppHandle,
+    selected_lines: Vec<String>,
+) -> Result<(), String> {
+    let data = selected_lines.join("\n");
+    Hosts::write(&app, &data)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -128,6 +145,8 @@ pub fn run() {
             convert_multiple_bats,
             get_custom_configs,
             open_ipset_dir,
+            get_hosts_data,
+            save_hosts_selection
         ])
         .setup(|app| {
             if let Ok(path) = app.path().executable_dir() {

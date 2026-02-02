@@ -1,4 +1,7 @@
 //use process_list::for_each_process;
+use regex::Regex;
+use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::io::Write;
 use std::os::windows::process::CommandExt;
@@ -15,6 +18,8 @@ use winreg::enums::*;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const HKLM_PATH: &str = r"System\CurrentControlSet\Services\zapret";
 const CONFIG_EXTENSION: &str = ".zapret";
+const HOSTS_URL: &str =
+    "https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts";
 
 macro_rules! sh {
     ($cmd:expr, $($arg:expr),*) => {
@@ -25,9 +30,106 @@ macro_rules! sh {
     };
 }
 
+pub struct Hosts;
+
+impl Hosts {
+    // малв, я надеюсь ты это менять не будешь. 🥹
+    const HOSTS_START_MARKER: &str = "### dns.malw.link: hosts file";
+    const HOSTS_MARKER_END: &str = "### dns.malw.link: end hosts file";
+
+    fn get_path() -> PathBuf {
+        let sys_root = env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
+        Path::new(&sys_root).join(r"System32\drivers\etc\hosts")
+    }
+
+    pub async fn fetch(app: &AppHandle) -> Result<String, String> {
+        let response = reqwest::get(HOSTS_URL).await.map_err(|e| {
+            let err_msg = format!("err internet: {}", e);
+            info(app, &err_msg);
+            err_msg
+        })?;
+
+        let text = response.text().await.map_err(|e| {
+            let err_msg = format!("err read: {}", e);
+            info(app, &err_msg);
+            err_msg
+        })?;
+
+        Ok(text)
+    }
+
+    pub fn clean(content: &str) -> String {
+        let pattern = format!(
+            r"(?s){}.*?{}",
+            regex::escape(Self::HOSTS_START_MARKER),
+            regex::escape(Self::HOSTS_MARKER_END)
+        );
+        let re = Regex::new(&pattern).unwrap();
+        re.replace_all(content, "").trim().to_string()
+    }
+
+    pub fn write(app: &AppHandle, new_data: &str) -> Result<(), String> {
+        let path = Self::get_path();
+        let current_content = fs::read_to_string(&path).unwrap_or_default();
+        if current_content.contains(Self::HOSTS_START_MARKER) {
+            info(app, "hosts block already exists, updating...");
+        } else {
+            info(app, "hosts block not found, creating new...");
+        }
+        let cleaned_base = Self::clean(&current_content);
+        let final_content = format!(
+            "{}\n{}\n{}\n\n{}",
+            Self::HOSTS_START_MARKER,
+            new_data.trim(),
+            Self::HOSTS_MARKER_END,
+            cleaned_base
+        );
+        fs::write(&path, final_content).map_err(|e| format!("err write: {}", e))?;
+
+        let result = sh!("ipconfig", "/flushdns");
+        info(app, &format!("hosts success {:?}", result));
+        Ok(())
+    }
+
+    pub fn get_categories(content: &str) -> HashMap<String, Vec<String>> {
+        let mut map: HashMap<String, Vec<String>> = HashMap::new();
+        let mut inside_block = false;
+
+        let mut current_category = "Базовая".to_string();
+        for line in content.lines() {
+            let line = line.trim();
+            if line == Self::HOSTS_START_MARKER {
+                inside_block = true;
+                continue;
+            }
+            if line == Self::HOSTS_MARKER_END {
+                break;
+            }
+            if inside_block && !line.is_empty() {
+                if line.starts_with('#') {
+                    let comment = line.trim_start_matches('#').trim();
+                    if !comment.contains("Последнее обновление") && !comment.is_empty()
+                    {
+                        if comment.to_lowercase().starts_with("базов") {
+                            current_category = "Базовая".to_string();
+                        } else {
+                            current_category = comment.to_string();
+                        }
+                    }
+                    continue;
+                }
+                map.entry(current_category.clone())
+                    .or_insert_with(Vec::new)
+                    .push(line.to_string());
+            }
+        }
+        map
+    }
+}
+
 fn write_to_file(app: &AppHandle, text: &str) {
     let mut log_path = app.path().executable_dir().unwrap_or_else(|_| {
-        let mut p = std::env::current_exe().unwrap_or_else(|_| std::env::current_dir().unwrap());
+        let mut p = env::current_exe().unwrap_or_else(|_| env::current_dir().unwrap());
         p.pop();
         p
     });
@@ -154,9 +256,6 @@ pub fn get_files_strategies(app: &AppHandle) -> Vec<String> {
         .unwrap_or_default()
 }
 
-// постройка аргументов с учётом ipset & game_filter
-// %LISTS% -> ip_set
-// %GameFilter% -> айпишкэээ
 pub fn build_full_args(app: &AppHandle, raw: &str, custom_ipset: Option<String>) -> String {
     let lists_dir = zapret_path(app, "lists");
     let game_filter_enabled = zapret_path(app, "utils/game_filter.enabled").exists();

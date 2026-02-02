@@ -21,6 +21,7 @@ export function Logic() {
     const [isSelectorOpen, setIsSelectorOpen] = useState(false);
     const [isConvertOpen, setIsConvertOpen] = useState(false);
     const [isIpsetModalOpen, setIsIpsetModalOpen] = useState(false);
+    const [isHostsModalOpen, setIsHostsModalOpen] = useState(false);
     const [customIpsetFiles, setCustomIpsetFiles] = useState<string[]>([]);
     const [ipsetView, setIpsetView] = useState<'main' | 'custom'>('main');
     const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
@@ -95,8 +96,8 @@ export function Logic() {
     };
 
     return {
-        state: { activePage, isPinned, logs, hoverText, lastText, isSelectorOpen, isConvertOpen, isIpsetModalOpen, customIpsetFiles, ipsetView, hoveredDesc, zapret, logStart },
-        prefs: { setActivePage, setHoverText: handleHover, setLastText, setIsSelectorOpen, setIsConvertOpen, setIsIpsetModalOpen, setIpsetView, setHoveredDesc },
+        state: { activePage, isPinned, logs, hoverText, lastText, isSelectorOpen, isConvertOpen, isIpsetModalOpen, isHostsModalOpen, customIpsetFiles, ipsetView, hoveredDesc, zapret, logStart },
+        prefs: { setActivePage, setHoverText: handleHover, setLastText, setIsSelectorOpen, setIsConvertOpen, setIsIpsetModalOpen, setIsHostsModalOpen, setIpsetView, setHoveredDesc },
         actions
     };
 }

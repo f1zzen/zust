@@ -1,3 +1,5 @@
+import { useModalAnimation } from "./useModalAnimation";
+
 interface Props {
     isOpen: boolean;
     onClose: () => void;
@@ -7,9 +9,10 @@ interface Props {
 }
 
 export const StrategyModal = ({ isOpen, onClose, configs, stratName, onSelect }: Props) => {
-    if (!isOpen) return null;
+    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
+    if (!shouldRender) return null;
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className={`modal-overlay ${isAnimatingOut ? 'closing' : ''}`} onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3>Выберите стратегию</h3>

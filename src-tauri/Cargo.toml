@@ -1,6 +1,6 @@
 [package]
 name = "zust"
-version = "1.1.0"
+version = "1.1.1"
 description = "Zapret, based on rUST."
 authors = ["f1zzen"]
 edition = "2024"

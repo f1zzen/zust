@@ -17,6 +17,7 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
     const [expanded, setExpanded] = useState<string[]>([BASIC]);
     const [selected, setSelected] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
+    const [lastUpdate, setLastUpdate] = useState<string>("");
 
     const [shouldRender, setShouldRender] = useState(isOpen);
     const [isAnimatingOut, setIsAnimatingOut] = useState(false);
@@ -25,8 +26,6 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
     const LIMIT_DOMAINS = 50;
 
     const handleClear = async () => {
-        if (!confirm("Вы уверены, что хотите полностью очистить записи hosts?")) return;
-
         setSaving(true);
         try {
             await invoke("save_hosts_selection", { selectedLines: [] });
@@ -43,15 +42,16 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
         setLoading(true);
         setError(null);
         try {
-            const fetchPromise = invoke<Record<string, string[]>>("get_hosts_data");
+            const fetchPromise = invoke<{ date: string, categories: Record<string, string[]> }>("get_hosts_data");
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("timeout")), TIMEOUT)
             );
-
-            const result = await (Promise.race([fetchPromise, timeoutPromise]) as Promise<Record<string, string[]>>);
-            setData(result);
-            setSelected(Object.keys(result));
+            const result = await (Promise.race([fetchPromise, timeoutPromise]) as Promise<{ date: string, categories: Record<string, string[]> }>);
+            setData(result.categories);
+            setLastUpdate(result.date);
+            setSelected(Object.keys(result.categories));
         } catch (e: any) {
+            console.error(e);
             setError(e.message === "timeout" ? ERR_TIMEOUT : ERR_READING);
         } finally {
             setLoading(false);
@@ -112,9 +112,22 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
                 className="modal-content hosts-modal"
                 onClick={e => e.stopPropagation()}
             >
-                <div className="modal-header">
-                    <h3>Настройка</h3>
-                    {!loading && !error && <span className="strat-count">{Object.keys(data).length} категорий</span>}
+                <div className="hosts-header">
+                    <div className="hosts-header-left">
+                        <div className="hosts-title-row">
+                            <h3>Настройка</h3>
+                            {!loading && !error && (
+                                <span className="hosts-badge">{Object.keys(data).length} групп</span>
+                            )}
+                        </div>
+                        <div className="hosts-update-info">
+                            <span className="calendar-icon">📅</span>
+                            <span className="calendar-text">Обновлено: {lastUpdate}</span>
+                        </div>
+                    </div>
+                    <div className="header-decoration">
+                        <div className="glow-dot"></div>
+                    </div>
                 </div>
 
                 <div className="modal-body">
@@ -139,64 +152,78 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
                     )}
 
                     {!loading && !error && (
-                        <div className="category-list">
-                            {Object.entries(data)
-                                .sort(([nameA], [nameB]) => {
-                                    if (nameA === BASIC) return -1;
-                                    if (nameB === BASIC) return 1;
-                                    if (nameA === "Блокировка") return 1;
-                                    if (nameB === "Блокировка") return -1;
-                                    return nameA.localeCompare(nameB);
-                                })
-                                .map(([name, lines]) => (
-                                    <div key={name} className="category-group">
-                                        <div className="category-header" onClick={() => toggleExpand(name)}>
-                                            <div className="checkbox-container" onClick={(e) => e.stopPropagation()}>
-                                                <input
-                                                    type="checkbox"
-                                                    id={`check-${name}`}
-                                                    checked={selected.includes(name)}
-                                                    onChange={(e) => {
-                                                        setSelected(prev => e.target.checked ? [...prev, name] : prev.filter(n => n !== name));
-                                                    }}
-                                                />
-                                                <label htmlFor={`check-${name}`}></label>
+                        <div className="hosts-scroll-area">
+                            <div className="category-list">
+                                {Object.entries(data).map(([name, lines]) => {
+                                    return (
+                                        <div key={name} className="category-group">
+                                            <div
+                                                className={`category-header ${expanded.includes(name) ? 'active' : ''}`}
+                                                onClick={() => toggleExpand(name)}
+                                            >
+                                                <div className="checkbox-wrapper" onClick={e => e.stopPropagation()}>
+                                                    <label className="custom-checkbox">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selected.includes(name)}
+                                                            onChange={e => setSelected(prev => e.target.checked ? [...prev, name] : prev.filter(n => n !== name))}
+                                                        />
+                                                        <span className="checkmark"></span>
+                                                    </label>
+                                                </div>
+
+                                                <span className="category-name">{name}</span>
+
+                                                <div className={`arrow-icon ${expanded.includes(name) ? 'rotated' : ''}`}>
+                                                    <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                                                        <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                </div>
                                             </div>
 
-                                            <span className="category-name">{name}</span>
-                                            <span className={`arrow-icon ${expanded.includes(name) ? 'rotated' : ''}`}>▸</span>
-                                        </div>
-
-                                        <div className={`category-lines-wrapper ${expanded.includes(name) ? 'expanded' : ''}`}>
-                                            <div className="category-lines">
-                                                {lines.slice(0, LIMIT_DOMAINS).map((line, i) => (
-                                                    <div key={`${name}-${i}`} className="host-row">
-                                                        <div className="host-dot"></div>
-                                                        <span className="host-text">{line}</span>
+                                            <div className={`category-content-wrapper ${expanded.includes(name) ? 'is-open' : ''}`}>
+                                                <div className="category-content-inner">
+                                                    <div className="category-lines">
+                                                        {lines.slice(0, LIMIT_DOMAINS).map((line, i) => {
+                                                            const [ip, ...domainParts] = line.trim().split(/\s+/);
+                                                            return (
+                                                                <div key={i} className="host-row" style={{ animationDelay: `${i * 15}ms` }}>
+                                                                    <div className="host-indicator-dot" />
+                                                                    <span className="host-ip">{ip}</span>
+                                                                    <span className="host-domain">{domainParts.join(' ')}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {lines.length > LIMIT_DOMAINS && (
+                                                            <div className="host-more-info">
+                                                                Показано {LIMIT_DOMAINS} из {lines.length} записей.
+                                                                <span className="host-limited-label">Лимит</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                ))}
-
-                                                {lines.length > LIMIT_DOMAINS && (
-                                                    <div className="host-more-info">
-                                                        Показано {LIMIT_DOMAINS} из {lines.length} записей.
-                                                        <span className="host-limited-label">Лимит</span>
-                                                    </div>
-                                                )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                            <div className="clear-hosts-container">
-                                <button
-                                    className="clear-hosts-btn"
-                                    onClick={handleClear}
-                                    disabled={saving}
-                                >
-                                    <span className="icon">🗑</span>
-                                    Очистить записи hosts
-                                </button>
-                                <p className="clear-hint">Это удалит только блок dns.malw.link, системные записи не пострадают.</p>
+                                    );
+                                })}
                             </div>
+                            {!loading && !error && (
+                                <div className="clear-hosts-container">
+                                    <button
+                                        className="clear-hosts-btn"
+                                        onClick={handleClear}
+                                        disabled={saving}
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+                                        </svg>
+                                        Очистить записи
+                                    </button>
+                                    <p className="clear-hint">
+                                        Не будут очищены остальные записи, кроме dns.malw.link
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

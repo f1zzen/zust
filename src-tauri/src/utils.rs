@@ -91,11 +91,24 @@ impl Hosts {
         Ok(())
     }
 
+    pub fn get_update_date(content: &str) -> String {
+        content
+            .lines()
+            .find(|line| line.contains("Последнее обновление"))
+            .map(|line| {
+                line.trim_start_matches('#')
+                    .replace("Последнее обновление:", "")
+                    .trim()
+                    .to_string()
+            })
+            .unwrap_or_else(|| "Неизвестно".to_string())
+    }
+
     pub fn get_categories(content: &str) -> HashMap<String, Vec<String>> {
         let mut map: HashMap<String, Vec<String>> = HashMap::new();
         let mut inside_block = false;
-
         let mut current_category = "Базовая".to_string();
+
         for line in content.lines() {
             let line = line.trim();
             if line == Self::HOSTS_START_MARKER {
@@ -105,21 +118,24 @@ impl Hosts {
             if line == Self::HOSTS_MARKER_END {
                 break;
             }
+
             if inside_block && !line.is_empty() {
                 if line.starts_with('#') {
                     let comment = line.trim_start_matches('#').trim();
-                    if !comment.contains("Последнее обновление") && !comment.is_empty()
+                    if comment.contains("Последнее обновление") || comment.is_empty()
                     {
-                        if comment.to_lowercase().starts_with("базов") {
-                            current_category = "Базовая".to_string();
-                        } else {
-                            current_category = comment.to_string();
-                        }
+                        continue;
                     }
+
+                    current_category = if comment.to_lowercase().starts_with("базов") {
+                        "Базовая".to_string()
+                    } else {
+                        comment.to_string()
+                    };
                     continue;
                 }
                 map.entry(current_category.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(line.to_string());
             }
         }
@@ -212,13 +228,17 @@ pub fn zapret_path(app: &AppHandle, sub: &str) -> PathBuf {
             .expect("failed to get resource dir");
         let direct = res_dir.join("zapret");
         let up_aliased = res_dir.join("_up_").join("zapret");
-
         if direct.exists() { direct } else { up_aliased }
     };
-
     let final_path = path.join(sub);
-    let path_str = final_path.to_string_lossy().replace(r"\\?\", "");
-    PathBuf::from(path_str)
+    let path_str = final_path.to_string_lossy();
+    let clean_path = if path_str.starts_with(r"\\?\") {
+        path_str.trim_start_matches(r"\\?\").to_string()
+    } else {
+        path_str.into_owned()
+    };
+
+    PathBuf::from(clean_path)
 }
 
 fn list_files(path: PathBuf, ext: &str) -> Vec<String> {

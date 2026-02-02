@@ -12,6 +12,12 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 
+#[derive(serde::Serialize)]
+pub struct HostsData {
+    pub date: String,
+    pub categories: HashMap<String, Vec<String>>,
+}
+
 #[derive(Deserialize)]
 pub struct StartServiceArgs {
     pub index: i32,
@@ -100,9 +106,11 @@ async fn convert_multiple_bats(paths: Vec<String>, app: tauri::AppHandle) -> Res
 }
 
 #[tauri::command]
-async fn get_hosts_data(app: tauri::AppHandle) -> Result<HashMap<String, Vec<String>>, String> {
-    let raw = Hosts::fetch(&app).await?;
-    Ok(Hosts::get_categories(&raw))
+async fn get_hosts_data(app: tauri::AppHandle) -> Result<HostsData, String> {
+    let content = Hosts::fetch(&app).await?;
+    let date = Hosts::get_update_date(&content);
+    let categories = Hosts::get_categories(&content);
+    Ok(HostsData { date, categories })
 }
 
 #[tauri::command]

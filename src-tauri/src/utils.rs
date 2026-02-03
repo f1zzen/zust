@@ -1,4 +1,4 @@
-//use process_list::for_each_process;
+use chrono::{DateTime, FixedOffset, Local, Utc};
 use md5::{Digest, Md5};
 use regex::Regex;
 use std::collections::HashMap;
@@ -237,7 +237,9 @@ pub async fn convert_multiple_bats(
 }
 
 pub fn info(app: &AppHandle, text: &str) {
-    let log = format!("[ZUST] {}", text);
+    let now = Local::now();
+    let time_str = now.format("%d.%m %H:%M:%S").to_string();
+    let log = format!("[{}] {}", time_str, text);
     write_to_file(app, &log);
     let _ = app.emit("log-event", &log);
 }

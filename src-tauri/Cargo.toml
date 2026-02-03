@@ -37,6 +37,7 @@ tauri-plugin-autostart = "2.5.1"
 tauri-plugin-single-instance = "2.3.7"
 md-5 = "0.10.6"
 hex = "0.4.3"
+chrono = { version = "0.4.43", features = ["serde"] }
 
 [profile.release]
 opt-level = "s"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { notify } from "../Notifications"
 
@@ -14,7 +14,7 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
     const [data, setData] = useState<Record<string, string[]>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [expanded, setExpanded] = useState<string[]>([BASIC]);
+    const [expanded, setExpanded] = useState<string[]>([]);
     const [selected, setSelected] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const [lastUpdate, setLastUpdate] = useState<string>("");
@@ -78,6 +78,16 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
         }
     }, [isOpen]);
 
+    const sortedKeys = useMemo(() => {
+        return Object.keys(data).sort((a, b) => {
+            if (a === BASIC) return -1;
+            if (b === BASIC) return 1;
+            if (a === "Блокировка") return 1;
+            if (b === "Блокировка") return -1;
+            return a.localeCompare(b);
+        });
+    }, [data]);
+
     if (!shouldRender) return null;
 
     const toggleExpand = (name: string) => {
@@ -112,9 +122,9 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
                 className="modal-content hosts-modal"
                 onClick={e => e.stopPropagation()}
             >
-                <div className="hosts-header">
-                    <div className="hosts-header-left">
-                        <div className="hosts-title-row">
+                <div className="v2-header">
+                    <div className="modal-header-left">
+                        <div className="modal-title-row">
                             <h3>Настройка</h3>
                             {!loading && !error && (
                                 <span className="hosts-badge">{Object.keys(data).length} групп</span>
@@ -150,11 +160,11 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
                             </button>
                         </div>
                     )}
-
                     {!loading && !error && (
                         <div className="hosts-scroll-area">
                             <div className="category-list">
-                                {Object.entries(data).map(([name, lines]) => {
+                                {sortedKeys.map((name) => {
+                                    const lines = data[name];
                                     return (
                                         <div key={name} className="category-group">
                                             <div

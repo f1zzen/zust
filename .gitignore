@@ -3,7 +3,6 @@ dist/
 dist-isolated/
 .eslintcache
 .stylelintcache
-src-tauri/target/
 .env
 .env*.local
 *.log
@@ -17,4 +16,3 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
-src-tauri/gen/

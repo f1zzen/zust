@@ -1,4 +1,5 @@
 //use process_list::for_each_process;
+use md5::{Digest, Md5};
 use regex::Regex;
 use std::collections::HashMap;
 use std::env;
@@ -20,6 +21,8 @@ const HKLM_PATH: &str = r"System\CurrentControlSet\Services\zapret";
 const CONFIG_EXTENSION: &str = ".zapret";
 const HOSTS_URL: &str =
     "https://raw.githubusercontent.com/ImMALWARE/dns.malw.link/refs/heads/master/hosts";
+const WINWS_EXE: &str =
+    "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/winws.exe";
 
 macro_rules! sh {
     ($cmd:expr, $($arg:expr),*) => {
@@ -141,6 +144,30 @@ impl Hosts {
         }
         map
     }
+}
+
+pub async fn check_winws_update(app: AppHandle) -> Result<bool, String> {
+    let bin_path = zapret_path(&app, "bin/winws.exe");
+    let local_hash = if bin_path.exists() {
+        let content = fs::read(&bin_path).map_err(|e| e.to_string())?;
+        format!("{:x}", Md5::digest(&content))
+    } else {
+        return Ok(true);
+    };
+    let response = reqwest::get(WINWS_EXE).await.map_err(|e| e.to_string())?;
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let remote_hash = format!("{:x}", Md5::digest(&bytes));
+    info(
+        &app,
+        &format!("hash diff {:?} n {:?}", remote_hash, local_hash),
+    );
+    if local_hash != remote_hash {
+        info(&app, "new winws.exe, download");
+        fs::write(&bin_path, &bytes).map_err(|e| e.to_string())?;
+        return Ok(true);
+    }
+
+    Ok(false)
 }
 
 fn write_to_file(app: &AppHandle, text: &str) {

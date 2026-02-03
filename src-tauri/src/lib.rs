@@ -44,6 +44,15 @@ fn open_ipset_dir(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
+fn open_strats_dir(app: tauri::AppHandle) {
+    let path = utils::zapret_path(&app, "strategies");
+    if !path.exists() {
+        let _ = fs::create_dir_all(&path);
+    }
+    let _ = Command::new("explorer").arg(path).spawn();
+}
+
+#[tauri::command]
 async fn start_service(app: tauri::AppHandle, args: StartServiceArgs) -> Result<(), String> {
     utils::start_service(&app, args.index, args.ipset_config);
     Ok(())
@@ -114,6 +123,11 @@ async fn get_hosts_data(app: tauri::AppHandle) -> Result<HostsData, String> {
 }
 
 #[tauri::command]
+async fn check_winws_update(app: tauri::AppHandle) -> Result<bool, String> {
+    utils::check_winws_update(app).await
+}
+
+#[tauri::command]
 async fn save_hosts_selection(
     app: tauri::AppHandle,
     selected_lines: Vec<String>,
@@ -154,7 +168,9 @@ pub fn run() {
             get_custom_configs,
             open_ipset_dir,
             get_hosts_data,
-            save_hosts_selection
+            save_hosts_selection,
+            check_winws_update,
+            open_strats_dir
         ])
         .setup(|app| {
             if let Ok(path) = app.path().executable_dir() {

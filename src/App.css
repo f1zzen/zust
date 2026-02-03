@@ -949,10 +949,38 @@ body {
   }
 }
 
-.folder-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+.category-group.active-strat {
+  background: rgba(168, 85, 247, 0.08);
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.category-group.active-strat .category-name {
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
+  font-weight: 600;
+}
+
+.modal-body .category-list {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.category-group:hover {
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.folder-btn {
+  background: rgba(168, 85, 247, 0.1) !important;
+  border: 1px solid rgba(168, 85, 247, 0.2) !important;
+  color: #c084fc !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+}
+
+.folder-btn:hover {
+  background: rgba(168, 85, 247, 0.2) !important;
+  transform: translateY(-1px);
 }
 
 .ipset-controls .back-btn,
@@ -1068,6 +1096,25 @@ body {
 .strat-item {
   padding: 14px 16px;
 }
+
+.modal-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 12px;
+  padding: 0 4px;
+}
+
+.strat-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #71717a;
+  font-size: 13px;
+}
+
+
 
 .modal-content {
   background: #111112;
@@ -1281,7 +1328,7 @@ body {
   overflow-y: auto;
 }
 
-.hosts-header {
+.v2-header {
   position: relative;
   padding: 24px 32px 20px;
   background: transparent;
@@ -1297,7 +1344,7 @@ body {
   right: 32px;
 }
 
-.hosts-header-left {
+.modal-header-left {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1312,13 +1359,13 @@ body {
   box-shadow: 0 0 12px 3px rgba(168, 85, 247, 0.4);
 }
 
-.hosts-title-row {
+.modal-title-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.hosts-title-row h3 {
+.modal-title-row h3 {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
@@ -1345,15 +1392,9 @@ body {
   opacity: 0.45;
 }
 
-.calendar-icon {
+.description-icon {
   font-size: 14px;
   filter: grayscale(1) brightness(1.5);
-}
-
-.calendar-text {
-  font-size: 12px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.8);
 }
 
 .category-group {

@@ -9,6 +9,7 @@ import { IpsetModal } from "./modals/IpsetModal"
 import { ConvertModal } from "./modals/ConvertModal"
 import { HostsModal } from "./modals/HostsModal"
 import { Logic } from "./Logic";
+import { Initializer } from "./main";
 
 const PAGE_INDEX: Record<string, number> = { home: 0, settings: 1, editor: 2, credits: 3 };
 
@@ -68,6 +69,7 @@ function App() {
         </div>
       </header>
 
+      <Initializer />
       <NotificationProvider>
         <main className="scroll-area">
           <div className="pages-slider" style={{ transform: `translateX(-${PAGE_INDEX[state.activePage] * 25}%)` }}>

@@ -22,6 +22,7 @@ export function Logic() {
     const [isConvertOpen, setIsConvertOpen] = useState(false);
     const [isIpsetModalOpen, setIsIpsetModalOpen] = useState(false);
     const [isHostsModalOpen, setIsHostsModalOpen] = useState(false);
+    const [isLegacyOpen, setIsLegacyOpen] = useState(false);
     const [customIpsetFiles, setCustomIpsetFiles] = useState<string[]>([]);
     const [ipsetView, setIpsetView] = useState<'main' | 'custom'>('main');
     const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
@@ -37,6 +38,12 @@ export function Logic() {
     useEffect(() => {
         setTimeout(() => { appWindow.show() }, 200);
         const initialize = async () => {
+            await invoke('sync_zapret_files');
+            const hasLegacy = await invoke('check_legacy_folder');
+            if (hasLegacy) {
+                setIsLegacyOpen(true);
+                return;
+            }
             await zapret.init();
             const interval = setInterval(() => {
                 zapret.checkZapret();
@@ -96,7 +103,7 @@ export function Logic() {
     };
 
     return {
-        state: { activePage, isPinned, logs, hoverText, lastText, isSelectorOpen, isConvertOpen, isIpsetModalOpen, isHostsModalOpen, customIpsetFiles, ipsetView, hoveredDesc, zapret, logStart },
+        state: { activePage, isPinned, logs, hoverText, lastText, isSelectorOpen, isConvertOpen, isIpsetModalOpen, isHostsModalOpen, customIpsetFiles, ipsetView, hoveredDesc, zapret, logStart, isLegacyOpen },
         prefs: { setActivePage, setHoverText: handleHover, setLastText, setIsSelectorOpen, setIsConvertOpen, setIsIpsetModalOpen, setIsHostsModalOpen, setIpsetView, setHoveredDesc },
         actions
     };

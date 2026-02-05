@@ -5934,7 +5934,7 @@ checksum = "94f63c051f4fe3c1509da62131a678643c5b6fbdc9273b2b79d4378ebda003d2"
 
 [[package]]
 name = "zust"
-version = "1.1.2"
+version = "1.1.3"
 dependencies = [
  "chrono",
  "embed-resource",

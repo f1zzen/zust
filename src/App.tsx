@@ -8,6 +8,7 @@ import { StrategyModal } from "./modals/StrategyModal"
 import { IpsetModal } from "./modals/IpsetModal"
 import { ConvertModal } from "./modals/ConvertModal"
 import { HostsModal } from "./modals/HostsModal"
+import { LegacyModal } from "./modals/LegacyModal";
 import { Logic } from "./Logic";
 import { Initializer } from "./main";
 
@@ -118,6 +119,7 @@ function App() {
         setHoveredDesc={prefs.setHoveredDesc}
       />
       <HostsModal isOpen={state.isHostsModalOpen} onClose={() => prefs.setIsHostsModalOpen(false)} />
+      <LegacyModal isOpen={state.isLegacyOpen} />
     </div>
   );
 }

@@ -49,7 +49,6 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
             const result = await (Promise.race([fetchPromise, timeoutPromise]) as Promise<{ date: string, categories: Record<string, string[]> }>);
             setData(result.categories);
             setLastUpdate(result.date);
-            setSelected(Object.keys(result.categories));
         } catch (e: any) {
             console.error(e);
             setError(e.message === "timeout" ? ERR_TIMEOUT : ERR_READING);

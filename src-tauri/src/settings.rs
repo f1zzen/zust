@@ -10,7 +10,7 @@ pub struct Settings {
     pub minimize_to_tray: bool,
     pub animation_enabled: bool,
     pub devtools: bool,
-    pub game_filter: bool
+    pub game_filter: bool,
 }
 pub fn get_config_path() -> PathBuf {
     let mut path = std::env::current_exe().unwrap_or_default();
@@ -39,6 +39,6 @@ pub fn load_settings() -> Settings {
         minimize_to_tray: true,
         animation_enabled: true,
         devtools: false,
-        game_filter: false
+        game_filter: false,
     }
 }

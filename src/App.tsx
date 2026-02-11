@@ -11,6 +11,11 @@ import { HostsModal } from "./modals/HostsModal"
 import { LegacyModal } from "./modals/LegacyModal";
 import { Logic } from "./Logic";
 import { Initializer } from "./main";
+import { ResolverModal } from "./modals/ResolverModal";
+import { ProxyModal } from "./modals/ProxyModal";
+import { NewsModal } from "./modals/NewsModal";
+import { useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 const PAGE_INDEX: Record<string, number> = { home: 0, settings: 1, editor: 2, credits: 3 };
 
@@ -45,6 +50,23 @@ const NavItem = ({ id, isActive, onClick, onHover }: any) => {
 function App() {
   const { state, prefs, actions } = Logic();
   const { zapret } = state;
+
+  const creditsClickCount = useRef(0);
+
+  const handleNavClick = (id: string) => {
+    if (id === 'credits') {
+      creditsClickCount.current += 1;
+
+      if (creditsClickCount.current === 20) {
+        invoke("open_link", { url: "https://youtu.be/9p79NOxX6Hk?t=30" });
+        creditsClickCount.current = 0;
+      }
+    } else {
+      creditsClickCount.current = 0;
+    }
+
+    prefs.setActivePage(id);
+  };
 
   return (
     <div className="main-container">
@@ -86,6 +108,9 @@ function App() {
                 setIsConvertOpen={prefs.setIsConvertOpen}
                 setIsIpsetModalOpen={prefs.setIsIpsetModalOpen}
                 setIsHostsModalOpen={prefs.setIsHostsModalOpen}
+                setIsResolverOpen={prefs.setIsResolverOpen}
+                setIsProxyModalOpen={prefs.setIsProxyModalOpen}
+                setIsNewsModalOpen={prefs.setIsNewsModalOpen}
                 handleToggle={() => zapret.status === 'stopped' ? zapret.startProcess() : zapret.stopProcess()}
               />
             </div>
@@ -99,12 +124,12 @@ function App() {
 
       <footer className="bottom-nav">
         {Object.keys(NAV_ICONS).map((id) => (
-          <NavItem key={id} id={id} isActive={state.activePage === id} onClick={() => prefs.setActivePage(id)} onHover={prefs.setHoverText} />
+          <NavItem key={id} id={id} isActive={state.activePage === id} onClick={() => handleNavClick(id)} onHover={prefs.setHoverText} />
         ))}
         <div className={`nav-tooltip ${state.hoverText ? 'visible' : ''}`}>{state.hoverText || state.lastText}</div>
       </footer>
 
-      <StrategyModal isOpen={state.isSelectorOpen} onClose={() => prefs.setIsSelectorOpen(false)} configs={zapret.configs} stratName={zapret.stratName} onSelect={actions.handleStrategyChange} />
+      <StrategyModal isOpen={state.isSelectorOpen} onClose={() => prefs.setIsSelectorOpen(false)} configs={zapret.configs} stratName={zapret.stratName} onSelect={actions.handleStrategyChange} updatableStrats={state.updatableStrats} setUpdatableStrats={prefs.setUpdatableStrats} />
       <ConvertModal isOpen={state.isConvertOpen} onClose={() => prefs.setIsConvertOpen(false)} onPick={actions.handlePickFiles} />
       <IpsetModal
         isOpen={state.isIpsetModalOpen}
@@ -120,6 +145,17 @@ function App() {
       />
       <HostsModal isOpen={state.isHostsModalOpen} onClose={() => prefs.setIsHostsModalOpen(false)} />
       <LegacyModal isOpen={state.isLegacyOpen} />
+      <ResolverModal
+        isOpen={state.isResolverOpen}
+        onClose={() => prefs.setIsResolverOpen(false)}
+        selectedIpset={zapret.selectedIpset}
+        onAdd={actions.addIp}
+      />
+      <ProxyModal isOpen={state.isProxyModalOpen} onClose={() => prefs.setIsProxyModalOpen(false)} />
+      <NewsModal
+        updateAvailable={state.updateAvailable}
+        onClose={() => prefs.setIsNewsModalOpen(false)}
+      />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 export const CreditsPage = () => (
@@ -15,15 +16,11 @@ export const CreditsPage = () => (
             <CreditCard title="zapret" author="bol-van" link="https://github.com/bol-van/zapret2" />
             <CreditCard title="zapret-youtube-discord" author="flowseal" link="https://github.com/flowseal/zapret-discord-youtube" />
             <CreditCard title="Icons" author="Lucide" link="https://lucide.dev/" />
-            <p className="friends-text" onClick={() => openUrl('https://t.me/fizzeeen')}>...и моим друзьям 🥹</p>
-            <p
-                className="telegram-btn"
-                onClick={() => openUrl('https://t.me/fizzeeen')}
-                style={{ cursor: 'pointer' }}
-            >
-                Подписаться на мой ТГК 👀👀👀
-            </p>
+            <p className="friends-text">...и моим друзьям 🥹</p>
         </div>
+        <div className="telegram-btn" onClick={async () => {
+            await invoke("open_link", { url: "https://t.me/zdotust" });
+        }}>Подписаться на ТГК проекта</div>
     </div>
 );
 

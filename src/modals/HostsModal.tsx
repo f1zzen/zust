@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { notify } from "../Notifications"
+import { log } from "../Logic";
 
 interface Props {
     isOpen: boolean;
@@ -33,6 +34,7 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
             onClose();
         } catch (e) {
             notify("Ошибка при очистке hosts.", "error");
+            log("hosts err " + e);
         } finally {
             setSaving(false);
         }

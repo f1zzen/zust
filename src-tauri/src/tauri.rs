@@ -1,7 +1,8 @@
+use crate::bypass::hosts::Hosts;
+use crate::bypass::proxies::{Proxies, Proxy};
+use crate::bypass::zapret::Zapret;
 use crate::settings::{self, Settings};
 use crate::utils;
-use crate::utils::Hosts;
-use crate::utils::Zapret;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::process::Command;
@@ -12,6 +13,11 @@ use tauri::Manager;
 pub struct HostsData {
     pub date: String,
     pub categories: HashMap<String, Vec<String>>,
+}
+
+#[tauri::command]
+pub fn open_link(url: String) -> Result<(), String> {
+    tauri_plugin_opener::open_url(&url, None::<&str>).map_err(|e| e.to_string())
 }
 
 #[derive(Deserialize)]
@@ -37,6 +43,16 @@ pub fn open_ipset_dir(app: tauri::AppHandle) {
         let _ = fs::create_dir_all(&path);
     }
     let _ = Command::new("explorer").arg(path).spawn();
+}
+
+#[tauri::command]
+pub async fn apply_strategy_update(app: tauri::AppHandle, file_name: String) -> Result<(), String> {
+    Zapret::apply_strategy_update(app, file_name).await
+}
+
+#[tauri::command]
+pub async fn check_strategy_updates(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    Zapret::check_strategy_updates(app).await
 }
 
 #[tauri::command]
@@ -151,4 +167,28 @@ pub async fn run_cleanup(app: tauri::AppHandle) -> Result<(), String> {
 pub async fn sync_zapret_files(app: tauri::AppHandle) -> Result<(), String> {
     Zapret::sync_zapret_files(&app)?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn add_ip(app: tauri::AppHandle, file_name: String, ip: String) -> Result<(), String> {
+    Zapret::add_ip(app, file_name, ip).await
+}
+
+#[tauri::command]
+pub async fn resolve_host(host: String) -> Result<String, String> {
+    Zapret::resolve_host(host).await
+}
+
+#[tauri::command]
+pub async fn get_proxy_list() -> Result<Vec<String>, String> {
+    Proxies::get_proxy_list().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn check_proxy_ping(
+    app: tauri::AppHandle,
+    address: &str,
+) -> Result<Option<Proxy>, String> {
+    let status = Proxies::check_proxy_ping(&address, app).await;
+    Ok(status)
 }

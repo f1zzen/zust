@@ -3,6 +3,10 @@
 // ::tauri - библиотека tauri
 // tauri - компонент tauri.rs
 
+pub mod bypass;
+pub mod settings;
+pub mod utils;
+
 use ::tauri::Manager;
 use ::tauri::menu::Menu;
 use ::tauri::menu::MenuItem;
@@ -11,13 +15,12 @@ use ::tauri::tray::TrayIconBuilder;
 use ::tauri::tray::TrayIconEvent;
 use std::fs;
 
-pub mod settings;
 mod tauri;
 use crate::tauri::*;
-pub mod utils;
 
 pub fn run() {
     ::tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let _ = app.get_webview_window("main").map(|w| {
                 let _ = w.show();
@@ -32,6 +35,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(::tauri::generate_handler![
+            open_link,
             get_strategy,
             start_service,
             stop_service,
@@ -53,7 +57,13 @@ pub fn run() {
             open_strats_dir,
             run_cleanup,
             check_legacy_folder,
-            sync_zapret_files
+            sync_zapret_files,
+            apply_strategy_update,
+            check_strategy_updates,
+            resolve_host,
+            add_ip,
+            get_proxy_list,
+            check_proxy_ping
         ])
         .setup(|app| {
             if let Ok(path) = app.path().executable_dir() {

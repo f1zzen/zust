@@ -62,7 +62,7 @@ export const EditorPage = () => {
                 />
 
                 <div className="action-buttons">
-                    <button className="telegram-btn" onClick={saveFile}>
+                    <button className="save-modal-btn" onClick={saveFile}>
                         СОХРАНИТЬ ИЗМЕНЕНИЯ
                     </button>
                 </div>

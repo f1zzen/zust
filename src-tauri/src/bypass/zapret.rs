@@ -318,11 +318,34 @@ impl Zapret {
     pub fn sync_zapret_files(app: &AppHandle) -> Result<(), String> {
         let source = Self::zapret_storage(app, "");
         let target = Self::zapret_path(app, "");
-        if target.join("bin/winws.exe").exists() {
-            return Ok(());
+        info(app, "начало синхронизации");
+        if let Err(e) = Self::copy_dir_all(&source, &target) {
+            let err_msg = format!("ошибка синхронизации: {}", e);
+            info(app, &err_msg);
+            return Err(err_msg);
         }
-        info(app, "синхронизация файлов с хранилища в %APPDATA%...");
-        copy_dir_all(source, target).map_err(|e| e.to_string())?;
+        info(app, "синхронизация завершена (занятые файлы пропущены).");
+        Ok(())
+    }
+
+    pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+        fs::create_dir_all(&dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let ty = entry.file_type()?;
+            let dst_path = dst.as_ref().join(entry.file_name());
+            if ty.is_dir() {
+                let _ = copy_dir_all(entry.path(), dst_path);
+            } else {
+                match fs::copy(entry.path(), &dst_path) {
+                    Ok(_) => {}
+                    Err(e) if e.raw_os_error() == Some(32) => {
+                        eprintln!("файл занят, пропускаем {:?}", entry.path());
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
         Ok(())
     }
 

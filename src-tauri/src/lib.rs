@@ -20,7 +20,6 @@ use crate::tauri::*;
 
 pub fn run() {
     ::tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let _ = app.get_webview_window("main").map(|w| {
                 let _ = w.show();
@@ -28,6 +27,7 @@ pub fn run() {
                 let _ = w.set_focus();
             });
         }))
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--silent"]),
@@ -63,7 +63,9 @@ pub fn run() {
             resolve_host,
             add_ip,
             get_proxy_list,
-            check_proxy_ping
+            check_proxy_ping,
+            main_window_init,
+            update_tls_bin
         ])
         .setup(|app| {
             if let Ok(path) = app.path().executable_dir() {

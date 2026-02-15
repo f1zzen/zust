@@ -139,6 +139,9 @@ body {
 .settings-text {
   display: flex;
   flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .editor-container {
@@ -598,10 +601,14 @@ body {
   font-weight: 600;
 }
 
-.credits-section {
+.credits-main-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 15px;
 }
 
 .section-title {
@@ -613,60 +620,12 @@ body {
   font-family: 'Onest';
 }
 
-.credit-item {
-  background: rgba(255, 255, 255, 0.03);
-  padding: 25px 16px;
-  border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  width: 320px;
-  box-sizing: border-box;
-  transition: all 0.3s ease;
-}
-
-.credit-name {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.credit-author {
-  font-size: 13px;
-  color: #a855f7;
-}
-
-.credit-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(168, 85, 247, 0.3);
-  transform: translateY(-2px);
-}
-
 .friends-text {
   text-align: center;
   font-size: 12px;
   opacity: 0.6;
   margin-top: 10px;
   font-family: 'Onest';
-}
-
-.telegram-btn {
-  background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
-  border: none;
-  color: white;
-  padding: 14px;
-  border-radius: 14px;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  transition: 0.3s;
-  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
-  font-family: 'Onest';
-}
-
-.telegram-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(168, 85, 247, 0.4);
 }
 
 .app-name {
@@ -1623,7 +1582,8 @@ body {
   color: #fff;
 }
 
-.save-modal-btn {
+.save-modal-btn,
+.telegram-btn {
   background: rgba(168, 85, 247, 0.1) !important;
   border: 1px solid rgba(168, 85, 247, 0.2) !important;
   color: #c084fc !important;
@@ -1631,7 +1591,8 @@ body {
   font-weight: 600 !important;
 }
 
-.save-modal-btn:hover:not(:disabled) {
+.save-modal-btn:hover:not(:disabled),
+.telegram-btn:hover:not(:disabled) {
   background: rgba(168, 85, 247, 0.2) !important;
   transform: translateY(-1px);
 }
@@ -1936,7 +1897,7 @@ body {
   background: rgba(59, 130, 246, 0.05);
 }
 
-.wide-btn.proxies-variant:hover {
+.wide-btn.proxy-variant:hover {
   border-color: rgba(59, 130, 246, 0.4);
   background: rgba(59, 130, 246, 0.05);
 }
@@ -2129,50 +2090,6 @@ body {
 
 .wide-btn:hover::after {
   left: 100%;
-}
-
-.log-container {
-  margin-top: 20px;
-  background: rgba(10, 10, 12, 0.6);
-  border: 1px solid rgba(168, 85, 247, 0.2);
-  border-radius: 12px;
-  width: 320px;
-  height: 120px;
-  box-sizing: border-box;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 12px;
-  font-family: 'Onest', monospace;
-  font-size: 11px;
-  display: block;
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.log-container:empty {
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
-}
-
-.log-line {
-  color: #a1a1aa;
-  margin-bottom: 6px;
-  border-left: 2px solid rgba(168, 85, 247, 0.5);
-  padding-left: 10px;
-  line-height: 1.4;
-  animation: fadeIn 0.2s ease-in;
-  word-break: break-all;
-  white-space: pre-wrap;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
 }
 
 .bottom-nav {
@@ -2539,4 +2456,337 @@ body {
   display: inline-block;
   animation: spin 0.8s linear infinite;
   font-size: 16px;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.splash-wrapper {
+  background: #0a0a0a;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #1a1a1a;
+  box-sizing: border-box;
+}
+
+.center-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.splash-content {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 2;
+}
+
+.logo-box {
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.splash-logo-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.text-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.splash-title {
+  font-family: 'Onest', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: #eeeeee;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.spacer {
+  flex-grow: 1;
+}
+
+.splash-loader-container {
+  width: 140px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+
+.splash-loader-line {
+  width: 60px;
+  height: 100%;
+  background: #5865f2;
+  animation: slide 1.5s infinite ease-in-out;
+  box-shadow: 0 0 10px #5865f2;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-150%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+.splash-subtitle {
+  font-family: 'Onest', sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: #ffffff;
+  margin: 0;
+  opacity: 0.8;
+  text-align: center;
+  animation: blurIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: filter, opacity;
+}
+
+@keyframes blurIn {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(2px) scale(0.98);
+  }
+
+  100% {
+    opacity: 0.8;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.credits-main-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.credits-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.credit-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  /* Растягиваем на всю ширину контейнера */
+  box-sizing: border-box;
+  gap: 20px;
+}
+
+.credit-name {
+  font-family: 'Onest', sans-serif;
+  font-size: 14px;
+  color: #eeeeee;
+  font-weight: 500;
+  /* Если название длинное, оно не наедет на автора */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.credit-author {
+  font-size: 12px;
+  flex-shrink: 0;
+  text-align: right;
+  color: #a855f7;
+}
+
+
+.credit-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(168, 85, 247, 0.4);
+  transform: translateX(4px);
+}
+
+.telegram-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: auto;
+  min-width: 240px;
+  max-width: 300px;
+  height: 44px;
+  margin: 16px auto;
+  padding: 0 24px;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.08) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 12px;
+  color: #d8b4fe;
+  font-family: 'Onest', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.telegram-btn:hover {
+  transform: translateY(-4px) scale(1.03);
+  background: rgba(168, 85, 247, 0.22);
+  border-color: #a855f7;
+  color: #fff;
+  box-shadow: 0 12px 25px rgba(168, 85, 247, 0.25);
+}
+
+.telegram-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.telegram-btn:hover .telegram-icon,
+.telegram-btn:hover .telegram-text {
+  transform: translateX(2px);
+}
+
+.telegram-text {
+  display: inline-block;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.telegram-btn:active {
+  transform: translateY(-1px) scale(0.97);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  transition: all 0.1s ease;
+}
+
+.log-container {
+  background: rgba(13, 13, 15, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 18px;
+  height: 200px;
+  margin: 10px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+.log-header {
+  padding: 14px 20px;
+  background: rgba(168, 85, 247, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: #a855f7;
+  font-family: 'Onest', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.log-header::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: #a855f7;
+  border-radius: 50%;
+  margin-right: 8px;
+  box-shadow: 0 0 8px #a855f7;
+}
+
+.log-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-line {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent;
+  color: #a1a1aa;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  -webkit-font-smoothing: antialiased;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.log-line:hover {
+  background: rgba(168, 85, 247, 0.08);
+  color: #fff;
+  transform: translateX(6px);
+  box-shadow: -3px 0 0 #a855f7;
+}
+
+.log-timestamp {
+  color: #bd7c1b;
+  flex-shrink: 0;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.log-line:hover .log-timestamp {
+  color: #d8b4fe;
+}
+
+.log-message {
+  word-break: break-all;
+  line-height: 1.4;
+  flex: 1;
 }

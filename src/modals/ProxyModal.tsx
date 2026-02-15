@@ -32,6 +32,15 @@ export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleClose = () => {
+        if (showNotice) {
+            setShowNotice(null);
+            setCopied(false);
+        } else {
+            onClose();
+        }
+    };
+
     const loadAndPing = async () => {
         try {
             const list: string[] = await invoke("get_proxy_list");
@@ -62,7 +71,7 @@ export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     if (!shouldRender) return null;
 
     return (
-        <div className={`modal-overlay ${isAnimatingOut ? 'closing' : ''}`} onClick={onClose}>
+        <div className={`modal-overlay ${isAnimatingOut ? 'closing' : ''}`} onClick={handleClose}>
             <div className="modal-content hosts-modal" onClick={e => e.stopPropagation()}>
 
                 <div className="v2-header">

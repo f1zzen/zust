@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main"
+    "main",
+    "splash"
   ],
   "permissions": [
     "core:path:default",
@@ -25,6 +26,8 @@
     "autostart:allow-is-enabled",
     "dialog:default",
     "shell:default",
-    "core:app:allow-version"
+    "core:app:allow-version",
+    "core:window:allow-get-all-windows",
+    "core:window:allow-set-focus"
   ]
 }

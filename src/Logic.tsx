@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { notify } from './Notifications';
 import { ZapretUtils } from "./ZapretUtils";
 import { getVersion } from '@tauri-apps/api/app';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 const appWindow = getCurrentWindow();
 
@@ -60,24 +60,38 @@ export function Logic() {
         }
     };
     useEffect(() => {
-        setTimeout(() => { appWindow.show() }, 200);
-
         let intervalId: number | null = null;
 
         const initialize = async () => {
             await invoke('sync_zapret_files');
-            checkUpdate();
+
             const hasLegacy = await invoke('check_legacy_folder');
             if (hasLegacy) {
                 setIsLegacyOpen(true);
+                await emit("app_ready");
                 return;
             }
-            invoke<string[]>('check_strategy_updates')
-                .then(list => setUpdatableStrats(list))
-                .catch(e => log("update check failed " + e));
 
-            await zapret.init();
-
+            await Promise.all([
+                zapret.init(),
+                invoke<string[]>('check_strategy_updates')
+                    .then(list => setUpdatableStrats(list))
+                    .catch(e => log("strategy check failed: " + e))
+            ]);
+            await emit("app_ready");
+            checkUpdate();
+            invoke<boolean>("check_winws_update")
+                .then(wasUpdated => {
+                    if (wasUpdated) log("zapret (winws.exe) обновлен до последней версии!");
+                })
+                .catch(() => { });
+            log("запуск обновления tls_max_ru");
+            try {
+                const result = await invoke<string>('update_tls_bin');
+                log(result);
+            } catch (e) {
+                log("ошибка при обновлении tls " + e);
+            }
             intervalId = window.setInterval(() => {
                 zapret.checkZapret();
             }, 5000);

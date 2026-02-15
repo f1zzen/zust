@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::process::Command;
 use std::{fs, path::PathBuf};
-use tauri::Manager;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(serde::Serialize)]
 pub struct HostsData {
@@ -88,7 +88,7 @@ pub fn log(text: &str, app: tauri::AppHandle) {
 
 #[tauri::command]
 pub fn get_list_files(app: tauri::AppHandle) -> Vec<String> {
-    Zapret::get_files_strategies(&app)
+    Zapret::get_files_lists(&app)
 }
 
 #[tauri::command]
@@ -191,4 +191,17 @@ pub async fn check_proxy_ping(
 ) -> Result<Option<Proxy>, String> {
     let status = Proxies::check_proxy_ping(&address, app).await;
     Ok(status)
+}
+
+#[tauri::command]
+pub fn main_window_init(app: tauri::AppHandle) {
+    let _ = WebviewWindowBuilder::new(&app, "main", WebviewUrl::App("index.html".into()))
+        .title("Zust")
+        .visible(false)
+        .build();
+}
+
+#[tauri::command]
+pub async fn update_tls_bin(app: tauri::AppHandle) -> Result<String, String> {
+    Zapret::update_tls_bin(app).await
 }

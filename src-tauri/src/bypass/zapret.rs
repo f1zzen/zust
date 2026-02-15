@@ -15,6 +15,7 @@ use winreg::enums::*;
 
 const WINWS_EXE: &str =
     "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/winws.exe";
+const MAX_RU_BIN: &str = "https://github.com/Flowseal/zapret-discord-youtube/raw/refs/heads/main/bin/tls_clienthello_max_ru.bin";
 const HKLM_PATH: &str = r"System\CurrentControlSet\Services\zapret";
 const CONFIG_EXTENSION: &str = ".zapret";
 const FLOWSEAL_REPO: &str =
@@ -93,6 +94,26 @@ impl Zapret {
             }
         }
         Ok(())
+    }
+
+    pub async fn update_tls_bin(app: AppHandle) -> Result<String, String> {
+        let target_path = Zapret::zapret_path(&app, "bin").join("tls_clienthello_max_ru.bin");
+        let response = reqwest::get(MAX_RU_BIN)
+            .await
+            .map_err(|e| format!("ошибка запроса: {}", e))?;
+
+        if response.status().is_success() {
+            let bytes = response
+                .bytes()
+                .await
+                .map_err(|e| format!("ошибка чтения данных: {}", e))?;
+
+            fs::write(&target_path, bytes).map_err(|e| format!("ошибка записи файла: {}", e))?;
+
+            Ok("файл успешно обновлен".to_string())
+        } else {
+            Err(format!("сервер вернул ошибку: {}", response.status()))
+        }
     }
 
     // проверка обновлений winws
@@ -316,15 +337,32 @@ impl Zapret {
 
     // синхрониз. файлов с билда до appdata
     pub fn sync_zapret_files(app: &AppHandle) -> Result<(), String> {
+        let target_strat_dir = Self::zapret_path(app, "strategies");
+
+        let has_strategies = if target_strat_dir.exists() {
+            fs::read_dir(&target_strat_dir)
+                .map(|mut entries| {
+                    entries.any(|e| {
+                        e.ok().map_or(false, |entry| {
+                            entry
+                                .path()
+                                .extension()
+                                .map_or(false, |ext| ext == "zapret")
+                        })
+                    })
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        };
+        if has_strategies {
+            return Ok(());
+        }
+        info(app, "cтратегии не найдены. выполняю синхронизацию");
         let source = Self::zapret_storage(app, "");
         let target = Self::zapret_path(app, "");
-        info(app, "начало синхронизации");
-        if let Err(e) = Self::copy_dir_all(&source, &target) {
-            let err_msg = format!("ошибка синхронизации: {}", e);
-            info(app, &err_msg);
-            return Err(err_msg);
-        }
-        info(app, "синхронизация завершена (занятые файлы пропущены).");
+        Self::copy_dir_all(&source, &target).map_err(|e| e.to_string())?;
+
         Ok(())
     }
 
@@ -360,7 +398,7 @@ impl Zapret {
             .unwrap_or_else(|_| "Отсутствует".to_string())
     }
 
-    pub fn get_files_strategies(app: &AppHandle) -> Vec<String> {
+    pub fn get_files_lists(app: &AppHandle) -> Vec<String> {
         fs::read_dir(Self::zapret_path(app, "lists"))
             .map(|entries| {
                 entries

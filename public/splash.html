@@ -1,0 +1,194 @@
+<!-- сплэш был переписан таким образом ради моментальной прогрузки -->
+<!-- из-за webview компоненты прогружаются ВСЕ, из за чего сплэш появляется не сразу. -->
+
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @font-face {
+            font-family: 'Onest';
+            src: url('/fonts/Onest-Regular.ttf') format('truetype');
+            font-weight: 100 1000;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+
+        .splash-wrapper {
+            background: #0a0a0a;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            border: 1px solid #1a1a1a;
+            box-sizing: border-box;
+        }
+
+        .splash-content {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+        }
+
+        .center-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-box {
+            width: 140px;
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .splash-logo-img {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .text-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .spacer {
+            flex-grow: 1;
+        }
+
+        .splash-loader-container {
+            width: 140px;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .splash-loader-line {
+            width: 60px;
+            height: 100%;
+            background: #5865f2;
+            animation: slide 1.5s infinite ease-in-out;
+            box-shadow: 0 0 10px #5865f2;
+        }
+
+        @keyframes slide {
+            from {
+                transform: translateX(-150%);
+            }
+
+            to {
+                transform: translateX(250%);
+            }
+        }
+
+        .splash-subtitle {
+            font-family: 'Onest';
+            font-weight: 400;
+            font-size: 15px;
+            color: #ffffff;
+            opacity: 0.8;
+            text-align: center;
+            will-change: filter, opacity;
+        }
+
+        .animate-phrase {
+            animation: blurIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes blurIn {
+            0% {
+                opacity: 0;
+                filter: blur(8px);
+                transform: translateY(2px) scale(0.98);
+            }
+
+            100% {
+                opacity: 0.8;
+                filter: blur(0);
+                transform: translateY(0) scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body data-tauri-drag-region>
+    <div class="splash-wrapper" data-tauri-drag-region>
+        <div class="splash-content" data-tauri-drag-region>
+            <div class="spacer"></div>
+            <div class="center-group">
+                <div class="logo-box">
+                    <img src="logo.gif" class="splash-logo-img" alt="Zust" />
+                </div>
+                <div class="text-container">
+                    <p class="splash-subtitle animate-phrase" id="phrase">Прогоняю Webview...</p>
+                </div>
+            </div>
+            <div class="spacer"></div>
+            <div class="splash-loader-container">
+                <div class="splash-loader-line"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const phrases = [
+            "Прогоняю Webview...", "Прогружаю ваши любимые обходы...",
+            "Мучаю запрет...", "Играю с РКН...", "Просматриваю прокси..",
+            "Заметаю следы...", "Нахожу новые стратегии..", "Ищу kaoмодзи для поста.."
+        ];
+        let i = 0;
+        const phraseEl = document.getElementById('phrase');
+        setInterval(() => {
+            i = (i + 1) % phrases.length;
+            phraseEl.classList.remove('animate-phrase');
+            void phraseEl.offsetWidth;
+            phraseEl.innerText = phrases[i];
+            phraseEl.classList.add('animate-phrase');
+        }, 2500);
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkTauri = setInterval(async () => {
+                if (window.__TAURI__) {
+                    clearInterval(checkTauri);
+                    const { listen } = window.__TAURI__.event;
+                    const { getAllWebviewWindows, getCurrentWebviewWindow } = window.__TAURI__.webviewWindow;
+
+                    listen("app_ready", async () => {
+                        const windows = await getAllWebviewWindows();
+                        const main = windows.find(w => w.label === 'main');
+                        if (main) {
+                            await main.show();
+                            await main.setFocus();
+                            setTimeout(async () => {
+                                await getCurrentWebviewWindow().close();
+                            }, 150);
+                        }
+                    });
+                }
+            }, 50);
+        });
+    </script>
+</body>
+
+</html>

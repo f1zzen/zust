@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { CreditsPage } from './pages/Credits';
+import { ExtraPage } from './pages/Extra';
 import { HomePage } from './pages/Home';
 import { SettingsPage } from "./pages/Settings";
 import { EditorPage } from "./pages/Editor";
@@ -10,7 +10,6 @@ import { ConvertModal } from "./modals/ConvertModal"
 import { HostsModal } from "./modals/HostsModal"
 import { LegacyModal } from "./modals/LegacyModal";
 import { Logic } from "./Logic";
-import { Initializer } from "./main";
 import { ResolverModal } from "./modals/ResolverModal";
 import { ProxyModal } from "./modals/ProxyModal";
 import { NewsModal } from "./modals/NewsModal";
@@ -91,16 +90,12 @@ function App() {
           <button className="win-btn close" onClick={() => getCurrentWindow().close()}>×</button>
         </div>
       </header>
-
-      <Initializer />
       <NotificationProvider>
         <main className="scroll-area">
           <div className="pages-slider" style={{ transform: `translateX(-${PAGE_INDEX[state.activePage] * 25}%)` }}>
             <div className={`page ${state.activePage === 'home' ? 'active' : ''}`}>
               <HomePage
                 {...zapret}
-                logs={state.logs}
-                logStart={state.logStart}
                 onSelectConfig={actions.handleStrategyChange}
                 isSelectorOpen={state.isSelectorOpen}
                 setIsSelectorOpen={prefs.setIsSelectorOpen}
@@ -117,7 +112,10 @@ function App() {
 
             <div className={`page ${state.activePage === 'settings' ? 'active' : ''}`}><SettingsPage /></div>
             <div className={`page ${state.activePage === 'editor' ? 'active' : ''}`}><EditorPage /></div>
-            <div className={`page ${state.activePage === 'credits' ? 'active' : ''}`}><CreditsPage /></div>
+            <div className={`page ${state.activePage === 'credits' ? 'active' : ''}`}><ExtraPage
+              {...zapret}
+              logs={state.logs}
+              logStart={state.logStart} /></div>
           </div>
         </main>
       </NotificationProvider>

@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Zust",
@@ -21,6 +22,16 @@
         "decorations": false,
         "visible": false,
         "devtools": true
+      },
+      {
+        "label": "splash",
+        "url": "splash.html",
+        "width": 320,
+        "height": 450,
+        "decorations": false,
+        "center": true,
+        "resizable": false,
+        "backgroundColor": "#0A0A0A"
       }
     ],
     "security": {

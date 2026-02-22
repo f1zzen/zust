@@ -36,7 +36,7 @@ export const IpsetModal = (p: Props) => {
                     {p.ipsetView === 'main' ? (
                         <div className="ipset-modal-grid">
                             <button
-                                className={`ipset-item ${p.selectedIpset === 'any' ? 'active' : ''}`}
+                                className={`ipset-item ${p.selectedIpset?.toLowerCase() === 'any' ? 'active' : ''}`}
                                 onClick={() => { p.onModeChange('Any'); p.onClose(); }}
                                 onMouseEnter={() => p.setHoveredDesc(DESCRIPTIONS['Any'])}
                                 onMouseLeave={() => p.setHoveredDesc(null)}
@@ -45,7 +45,7 @@ export const IpsetModal = (p: Props) => {
                             </button>
 
                             <button
-                                className={`ipset-item ${p.selectedIpset === 'none' ? 'active' : ''}`}
+                                className={`ipset-item ${p.selectedIpset?.toLowerCase() === 'none' ? 'active' : ''}`}
                                 onClick={() => { p.onModeChange('None'); p.onClose(); }}
                                 onMouseEnter={() => p.setHoveredDesc(DESCRIPTIONS['None'])}
                                 onMouseLeave={() => p.setHoveredDesc(null)}

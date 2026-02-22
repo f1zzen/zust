@@ -1,7 +1,13 @@
+// @ts-ignore
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+// @ts-ignore
+import dns from "node:dns";
 
+// @ts-ignore
 const host = process.env.TAURI_DEV_HOST;
+
+dns.setDefaultResultOrder("verbatim");
 
 export default defineConfig(async () => ({
   plugins: [react()],
@@ -9,7 +15,7 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || "127.0.0.1",
+    host: "127.0.0.1",
     hmr: host
       ? {
         protocol: "ws",
@@ -24,5 +30,5 @@ export default defineConfig(async () => ({
     watch: {
       ignored: ["**/src-tauri/**"],
     },
-  },
+  }
 }));

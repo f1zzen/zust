@@ -6,10 +6,13 @@ use md5::{Digest, Md5};
 use std::fs;
 use std::io::Write;
 use std::net::IpAddr;
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 use tauri::AppHandle;
 use tauri::Manager;
+use tauri::Runtime;
 use winreg::RegKey;
 use winreg::enums::*;
 
@@ -335,32 +338,49 @@ impl Zapret {
         path.join(sub)
     }
 
-    // синхрониз. файлов с билда до appdata
     pub fn sync_zapret_files(app: &AppHandle) -> Result<(), String> {
-        let target_strat_dir = Self::zapret_path(app, "strategies");
+        let target_dir = Self::zapret_path(app, "");
+        let bin_path = target_dir.join("bin").join("winws.exe");
+        let strat_dir = target_dir.join("strategies");
+        let essential_files = ["ipset-all.txt", "ipset-any-hide.txt", "ipset-none-hide.txt"];
+        let lists_dir = target_dir.join("lists");
 
-        let has_strategies = if target_strat_dir.exists() {
-            fs::read_dir(&target_strat_dir)
-                .map(|mut entries| {
-                    entries.any(|e| {
-                        e.ok().map_or(false, |entry| {
-                            entry
-                                .path()
-                                .extension()
-                                .map_or(false, |ext| ext == "zapret")
-                        })
-                    })
+        let mut needs_sync = false;
+        if !bin_path.exists() {
+            needs_sync = true;
+        }
+
+        if !needs_sync {
+            let has_strategies = fs::read_dir(&strat_dir)
+                .map(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .any(|e| e.path().extension().map_or(false, |ext| ext == "zapret"))
                 })
-                .unwrap_or(false)
-        } else {
-            false
-        };
-        if has_strategies {
+                .unwrap_or(false);
+
+            if !has_strategies {
+                needs_sync = true;
+            }
+        }
+        if !needs_sync {
+            for filename in &essential_files {
+                if !lists_dir.join(filename).exists() {
+                    needs_sync = true;
+                    break;
+                }
+            }
+        }
+
+        if !needs_sync {
             return Ok(());
         }
-        info(app, "cтратегии не найдены. выполняю синхронизацию");
+
+        info(app, "Обнаружен критический момент в сборке. Исправляю..");
+
         let source = Self::zapret_storage(app, "");
         let target = Self::zapret_path(app, "");
+
         Self::copy_dir_all(&source, &target).map_err(|e| e.to_string())?;
 
         Ok(())
@@ -408,6 +428,35 @@ impl Zapret {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub async fn restore_zapret_files<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
+        let app_wry = (&app as &dyn std::any::Any)
+            .downcast_ref::<AppHandle<tauri::Wry>>()
+            .ok_or("downcast failed")?;
+
+        Self::stop_service(app_wry);
+        let storage_dir = Zapret::zapret_storage(app_wry, "");
+        let working_dir = Zapret::zapret_path(app_wry, "");
+        if !storage_dir.exists() {
+            return Err(format!(
+                "Ошибка: Хранилище не найдено по пути {:?}",
+                storage_dir
+            ));
+        }
+        if working_dir.exists() {
+            fs::remove_dir_all(&working_dir).map_err(|e| {
+                format!(
+                    "Не удалось очистить рабочую папку. Возможно, процесс запущен: {}",
+                    e
+                )
+            })?;
+        }
+        fs::create_dir_all(&working_dir).map_err(|e| e.to_string())?;
+        copy_dir_all(&storage_dir, &working_dir)
+            .map_err(|e| format!("Ошибка при копировании из хранилища: {}", e))?;
+
+        Ok("Система успешно восстановлена из хранилища".into())
     }
 
     pub fn build_full_args(app: &AppHandle, raw: &str, custom_ipset: Option<String>) -> String {
@@ -521,5 +570,18 @@ impl Zapret {
             let _ = sh!("sc", "delete", d);
         }
         info(app, "Сервисы ZAPRET-а очищены и удалены.");
+    }
+
+    pub fn is_active() -> bool {
+        let output = Command::new("sc")
+            .args(["query", "zapret"])
+            .creation_flags(0x08000000)
+            .output();
+
+        if let Ok(out) = output {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            return stdout.contains("RUNNING");
+        }
+        false
     }
 }

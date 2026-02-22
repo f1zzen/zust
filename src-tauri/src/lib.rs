@@ -16,16 +16,30 @@ use ::tauri::tray::TrayIconEvent;
 use std::fs;
 
 mod tauri;
+use crate::bypass::tor::Tor;
 use crate::tauri::*;
+use crate::utils::process_incoming_url;
+use crate::utils::register_zust_protocol;
 
 pub fn run() {
+    // исключение для работ программ, работающих с прокси
+    unsafe {
+        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--no-sandbox");
+    }
     ::tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let _ = app.get_webview_window("main").map(|w| {
                 let _ = w.show();
                 let _ = w.unminimize();
                 let _ = w.set_focus();
             });
+            if let Some(url) = args.iter().find(|a| a.starts_with("zust://")) {
+                let handle = app.clone();
+                let url_to_process = url.clone();
+                ::tauri::async_runtime::spawn(async move {
+                    process_incoming_url(handle, url_to_process).await;
+                });
+            }
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
@@ -64,10 +78,29 @@ pub fn run() {
             add_ip,
             get_proxy_list,
             check_proxy_ping,
-            main_window_init,
-            update_tls_bin
+            update_tls_bin,
+            start_tor,
+            stop_tor,
+            enable_system_proxy,
+            disable_system_proxy,
+            is_active,
+            handle_add_link,
+            check_resources_exist,
+            flush_dns,
+            restore_zapret_files,
+            check_tor_status
         ])
         .setup(|app| {
+            let _ = register_zust_protocol();
+
+            let args: Vec<String> = std::env::args().collect();
+            if let Some(u) = args.iter().find(|a| a.starts_with("zust://")) {
+                let handle = app.handle().clone();
+                let url = u.clone();
+                ::tauri::async_runtime::spawn(async move {
+                    process_incoming_url(handle, url).await;
+                });
+            }
             if let Ok(path) = app.path().executable_dir() {
                 let mut log_path = path;
                 log_path.push("latest.log");
@@ -81,6 +114,7 @@ pub fn run() {
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     if event.id.as_ref() == "quit" {
+                        let _ = Tor::stop(app.clone());
                         app.exit(0);
                     }
                 })
@@ -109,5 +143,5 @@ pub fn run() {
             }
         })
         .run(::tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error while running tauri application")
 }

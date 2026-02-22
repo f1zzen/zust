@@ -18,7 +18,10 @@ export const NewsModal = ({
             try {
                 const rawUrl = "https://gist.githubusercontent.com/f1zzen/92a5742eb95e6e1922b268e9dd586f45/raw/warning";
                 const response = await fetch(`${rawUrl}?t=${Date.now()}`, { cache: 'no-store' });
-                if (!response.ok) return;
+                if (!response.ok) {
+                    onClose();
+                    return;
+                }
 
                 const text = await response.text();
                 const lines = text.split('\n');
@@ -26,25 +29,35 @@ export const NewsModal = ({
                 const content = lines.slice(1).join('\n').trim();
 
                 if (title || content) {
-                    const lastSeenHash = localStorage.getItem("last_seen_news_hash");
-                    const currentHash = title + content;
-                    setNews({ title, content });
-                    if (updateAvailable || lastSeenHash !== currentHash) {
+                    const currentNewsId = `${updateAvailable || 'no-upd'}_${title}_${content}`;
+                    const lastSeenId = localStorage.getItem("last_seen_news_id");
+
+                    if (lastSeenId === currentNewsId) {
+                        onClose();
+                    } else {
+                        setNews({ title, content });
                         setIsVisible(true);
                     }
+                } else {
+                    onClose();
                 }
-            } catch (e) { log("" + e); }
+            } catch (e) {
+                log("ERR: FAILED_TO_FETCH_NEWS: " + e);
+                onClose();
+            }
         };
         fetchNews();
     }, [updateAvailable]);
+
     const handleInternalClose = () => {
         if (news) {
-            localStorage.setItem("last_seen_news_hash", news.title + news.content);
+            const currentNewsId = `${updateAvailable || 'no-upd'}_${news.title}_${news.content}`;
+            localStorage.setItem("last_seen_news_id", currentNewsId);
         }
-
         setIsVisible(false);
         onClose();
     };
+
     if (!isVisible || !news) return null;
     return (
         <div className="modal-overlay legacy-danger" style={{ zIndex: 9999 }}>

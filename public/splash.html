@@ -139,7 +139,7 @@
             <div class="spacer"></div>
             <div class="center-group">
                 <div class="logo-box">
-                    <img src="logo.gif" class="splash-logo-img" alt="Zust" />
+                    <img src="logo_1.gif" id="splash-logo" class="splash-logo-img" alt="Zust" />
                 </div>
                 <div class="text-container">
                     <p class="splash-subtitle animate-phrase" id="phrase">Прогоняю Webview...</p>
@@ -153,10 +153,26 @@
     </div>
 
     <script>
+        const TOTAL_GIFS = 7;
+        const MAIN_GIF_CHANCE = 85 / 100;
+        const logoEl = document.getElementById('splash-logo');
+
+        function getRandomLogo() {
+            const roll = Math.random();
+
+            if (roll < MAIN_GIF_CHANCE) {
+                return 'logo_1.gif';
+            } else {
+                const randomAlternative = Math.floor(Math.random() * (TOTAL_GIFS - 1)) + 2;
+                return `logo_${randomAlternative}.gif`;
+            }
+        }
+        logoEl.src = getRandomLogo();
         const phrases = [
             "Прогоняю Webview...", "Прогружаю ваши любимые обходы...",
             "Мучаю запрет...", "Играю с РКН...", "Просматриваю прокси..",
-            "Заметаю следы...", "Нахожу новые стратегии..", "Ищу kaoмодзи для поста.."
+            "Заметаю следы...", "Нахожу новые стратегии..", "Ищу kaoмодзи для поста..",
+            "Разбираюсь с узлами TOR..", "Долговато подключаешься, дружище.."
         ];
         let i = 0;
         const phraseEl = document.getElementById('phrase');
@@ -179,7 +195,6 @@
                         const main = windows.find(w => w.label === 'main');
                         if (main) {
                             await main.show();
-                            await main.setFocus();
                             setTimeout(async () => {
                                 await getCurrentWebviewWindow().close();
                             }, 150);

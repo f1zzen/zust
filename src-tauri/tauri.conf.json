@@ -24,6 +24,7 @@
         "devtools": true
       },
       {
+        "title": "Zust",
         "label": "splash",
         "url": "splash.html",
         "width": 320,
@@ -40,6 +41,7 @@
   },
   "bundle": {
     "resources": [
+      "./tor/**/*",
       "./zapret/**/*"
     ],
     "active": true,

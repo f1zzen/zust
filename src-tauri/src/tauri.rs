@@ -1,13 +1,14 @@
 use crate::bypass::hosts::Hosts;
 use crate::bypass::proxies::{Proxies, Proxy};
+use crate::bypass::tor::Tor;
 use crate::bypass::zapret::Zapret;
 use crate::settings::{self, Settings};
-use crate::utils;
+use crate::utils::{self, AddType};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::process::Command;
 use std::{fs, path::PathBuf};
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, Runtime};
 
 #[derive(serde::Serialize)]
 pub struct HostsData {
@@ -143,12 +144,8 @@ pub async fn check_winws_update(app: tauri::AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn save_hosts_selection(
-    app: tauri::AppHandle,
-    selected_lines: Vec<String>,
-) -> Result<(), String> {
-    let data = selected_lines.join("\n");
-    Hosts::write(&app, &data)
+pub fn save_hosts_selection(app: tauri::AppHandle, selected_lines: String) -> Result<(), String> {
+    Hosts::write(&app, &selected_lines)
 }
 
 #[tauri::command]
@@ -194,14 +191,65 @@ pub async fn check_proxy_ping(
 }
 
 #[tauri::command]
-pub fn main_window_init(app: tauri::AppHandle) {
-    let _ = WebviewWindowBuilder::new(&app, "main", WebviewUrl::App("index.html".into()))
-        .title("Zust")
-        .visible(false)
-        .build();
+pub async fn update_tls_bin(app: tauri::AppHandle) -> Result<String, String> {
+    Zapret::update_tls_bin(app).await
 }
 
 #[tauri::command]
-pub async fn update_tls_bin(app: tauri::AppHandle) -> Result<String, String> {
-    Zapret::update_tls_bin(app).await
+pub async fn start_tor(app: tauri::AppHandle) -> Result<(), String> {
+    Tor::start(app).await
+}
+
+#[tauri::command]
+pub async fn stop_tor(app: tauri::AppHandle) -> Result<(), String> {
+    Tor::stop(app)
+}
+
+#[tauri::command]
+pub async fn enable_system_proxy() -> Result<(), String> {
+    Tor::switch_proxy(true).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn disable_system_proxy() -> Result<(), String> {
+    Tor::switch_proxy(false).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn is_active() -> bool {
+    Zapret::is_active()
+}
+
+#[tauri::command]
+pub async fn handle_add_link(
+    app: tauri::AppHandle,
+    add_type: AddType,
+    url: String,
+    custom_name: Option<String>,
+) -> Result<String, String> {
+    utils::handle_add_link(app, add_type, url, custom_name).await
+}
+
+#[tauri::command]
+pub async fn check_resources_exist(
+    app: tauri::AppHandle,
+    strategy: Option<String>,
+    ipset: Option<String>,
+) -> Result<Vec<String>, String> {
+    utils::check_resources_exist(app, strategy, ipset).await
+}
+
+#[tauri::command]
+pub async fn flush_dns() -> Result<String, String> {
+    utils::flush_dns().await
+}
+
+#[tauri::command]
+pub async fn restore_zapret_files<R: Runtime>(app: tauri::AppHandle<R>) -> Result<String, String> {
+    Zapret::restore_zapret_files(app).await
+}
+
+#[tauri::command]
+pub async fn check_tor_status(app: tauri::AppHandle) -> Result<bool, String> {
+    Ok(Tor::check_existing_tor(app))
 }

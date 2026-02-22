@@ -13,10 +13,101 @@ import { Logic } from "./Logic";
 import { ResolverModal } from "./modals/ResolverModal";
 import { ProxyModal } from "./modals/ProxyModal";
 import { NewsModal } from "./modals/NewsModal";
-import { useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { memo, useEffect, useRef, useState } from "react";
+import Particles from "@tsparticles/react";
+import { ProxyPage } from "./pages/Proxy";
+import { DeepLinkModal } from "./modals/DeepLinkModal";
 
-const PAGE_INDEX: Record<string, number> = { home: 0, settings: 1, editor: 2, credits: 3 };
+const STRASHILKI_BUGAGA = 11;
+
+const particlesOptions: any = {
+  fpsLimit: 120,
+  background: { color: "transparent" },
+  particles: {
+    number: {
+      value: 100,
+      limit: 150,
+      density: { enable: true, area: 800 }
+    },
+    color: {
+      value: ["#a855f7", "#6366f1", "#ffffff"],
+    },
+    shape: {
+      type: "circle",
+    },
+    opacity: {
+      value: { min: 0.1, max: 0.5 },
+      animation: { enable: true, speed: 1, sync: false }
+    },
+    size: {
+      value: { min: 1, max: 3 },
+      animation: { enable: true, speed: 2, sync: false }
+    },
+    links: {
+      enable: true,
+      distance: 120,
+      color: "#6366f1",
+      opacity: 0.2,
+      width: 1,
+      consent: false,
+      revealOffset: 10
+    },
+    move: {
+      enable: true,
+      speed: { min: 0.1, max: 0.8 },
+      direction: "none",
+      random: true,
+      straight: false,
+      outModes: { default: "out" },
+      attract: {
+        enable: true,
+        rotateX: 2000,
+        rotateY: 2000
+      }
+    }
+  },
+  interactivity: {
+    events: {
+      onHover: {
+        enable: true,
+        mode: ["bubble", "connect"],
+        parallax: { enable: true, force: 100, smooth: 15 }
+      },
+      onClick: { enable: true, mode: "repulse" }
+    },
+    modes: {
+      bubble: {
+        distance: 200,
+        size: 6,
+        duration: 0.3,
+        opacity: 0.8,
+        color: "#ffffff"
+      },
+      connect: {
+        distance: 150,
+        links: { opacity: 0.4 },
+        radius: 150
+      },
+      repulse: {
+        distance: 250,
+        duration: 0.4
+      }
+    }
+  },
+  detectRetina: true
+};
+
+const ParticlesBackground = memo(() => {
+  return (
+    <Particles
+      id="particles"
+      key="constant-particles-root"
+      options={particlesOptions}
+    />
+  );
+});
+
+const PAGE_INDEX: Record<string, number> = { home: 0, settings: 1, proxy: 2, editor: 3, credits: 4 };
 
 const NAV_ICONS = {
   home: {
@@ -26,6 +117,14 @@ const NAV_ICONS = {
   settings: {
     label: 'Настройки',
     path: <><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></>
+  },
+  proxy: {
+    label: 'Прокси',
+    path: (
+      <>
+        <path d="M18 11c-1.5 0-2.5.5-3 2" /><path d="M4 6a2 2 0 0 0-2 2v4a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V8a2 2 0 0 0-2-2h-3a8 8 0 0 0-5 2 8 8 0 0 0-5-2z" /><path d="M6 11c1.5 0 2.5.5 3 2" />
+      </>
+    )
   },
   editor: {
     label: 'Редактор',
@@ -50,15 +149,51 @@ function App() {
   const { state, prefs, actions } = Logic();
   const { zapret } = state;
 
+  const [bugagaConfig, setBugagaConfig] = useState<{ path: string, id: number } | null>(null);
+  const jumpscareTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastClickTime = useRef<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const creditsClickCount = useRef(0);
 
+  useEffect(() => {
+    return () => {
+      if (jumpscareTimer.current) clearTimeout(jumpscareTimer.current);
+    };
+  }, []);
+
   const handleNavClick = (id: string) => {
+    const currentTime = Date.now();
+
     if (id === 'credits') {
+      if (currentTime - lastClickTime.current > 5000) {
+        creditsClickCount.current = 0;
+      }
+
+      lastClickTime.current = currentTime;
       creditsClickCount.current += 1;
 
-      if (creditsClickCount.current === 20) {
-        invoke("open_link", { url: "https://youtu.be/9p79NOxX6Hk?t=30" });
-        creditsClickCount.current = 0;
+      if (creditsClickCount.current >= 20) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        const audio = new Audio('/jumpscare.mp3');
+        audioRef.current = audio;
+        audio.play().catch(() => { });
+
+        const random = Math.floor(Math.random() * STRASHILKI_BUGAGA) + 1;
+        const path = `/jumpscare_${random}.jpg`;
+
+        setBugagaConfig(null);
+
+        setTimeout(() => {
+          setBugagaConfig({ path: path, id: Date.now() });
+          if (jumpscareTimer.current) clearTimeout(jumpscareTimer.current);
+          jumpscareTimer.current = setTimeout(() => {
+            setBugagaConfig(null);
+          }, 5000);
+        }, 5);
       }
     } else {
       creditsClickCount.current = 0;
@@ -69,13 +204,7 @@ function App() {
 
   return (
     <div className="main-container">
-      <div className="space-background">
-        <div className="nebula"></div>
-        <div className="stars"></div>
-        <div className="stars2"></div>
-        <div className="shooting-stars"></div>
-      </div>
-
+      <ParticlesBackground />
       <header className="titlebar" data-tauri-drag-region>
         <div className="app-identity" data-tauri-drag-region>
           <span className="star-icon">✦</span>
@@ -92,7 +221,7 @@ function App() {
       </header>
       <NotificationProvider>
         <main className="scroll-area">
-          <div className="pages-slider" style={{ transform: `translateX(-${PAGE_INDEX[state.activePage] * 25}%)` }}>
+          <div className="pages-slider" style={{ transform: `translateX(-${PAGE_INDEX[state.activePage] * 20}%)` }}>
             <div className={`page ${state.activePage === 'home' ? 'active' : ''}`}>
               <HomePage
                 {...zapret}
@@ -111,6 +240,7 @@ function App() {
             </div>
 
             <div className={`page ${state.activePage === 'settings' ? 'active' : ''}`}><SettingsPage /></div>
+            <div className={`page ${state.activePage === 'proxy' ? 'active' : ''}`}><ProxyPage /></div>
             <div className={`page ${state.activePage === 'editor' ? 'active' : ''}`}><EditorPage /></div>
             <div className={`page ${state.activePage === 'credits' ? 'active' : ''}`}><ExtraPage
               {...zapret}
@@ -119,6 +249,68 @@ function App() {
           </div>
         </main>
       </NotificationProvider>
+      {bugagaConfig && (
+        <div
+          key={bugagaConfig.id}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 999999,
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent'
+          }}
+        >
+          <div className="jpeg-ruin" style={{
+            width: '100%',
+            height: '100%',
+            background: 'transparent'
+          }}>
+            <img
+              src={bugagaConfig.path}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'fill',
+                animation: 'jumpscare-simple 5s ease-out forwards',
+                display: 'block',
+                background: 'transparent'
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <style>
+        {`
+  @keyframes jumpscare-simple {
+    0% { opacity: 1; }
+    15% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  .jpeg-ruin {
+    position: relative;
+    filter: contrast(1.5) brightness(1.2) saturate(1.8) blur(0.4px);
+    image-rendering: pixelated;
+  }
+
+  .jpeg-ruin::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    opacity: 0.25;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    mask-image: linear-gradient(#000, #000);
+  }
+  `}
+      </style>
 
       <footer className="bottom-nav">
         {Object.keys(NAV_ICONS).map((id) => (
@@ -126,7 +318,6 @@ function App() {
         ))}
         <div className={`nav-tooltip ${state.hoverText ? 'visible' : ''}`}>{state.hoverText || state.lastText}</div>
       </footer>
-
       <StrategyModal isOpen={state.isSelectorOpen} onClose={() => prefs.setIsSelectorOpen(false)} configs={zapret.configs} stratName={zapret.stratName} onSelect={actions.handleStrategyChange} updatableStrats={state.updatableStrats} setUpdatableStrats={prefs.setUpdatableStrats} />
       <ConvertModal isOpen={state.isConvertOpen} onClose={() => prefs.setIsConvertOpen(false)} onPick={actions.handlePickFiles} />
       <IpsetModal
@@ -141,6 +332,12 @@ function App() {
         hoveredDesc={state.hoveredDesc}
         setHoveredDesc={prefs.setHoveredDesc}
       />
+      <DeepLinkModal
+        isOpen={state.isDeepLinkModalOpen}
+        onClose={() => prefs.setIsDeepLinkModalOpen(false)}
+        state={state}
+        data={state.deepLinkData}
+      />
       <HostsModal isOpen={state.isHostsModalOpen} onClose={() => prefs.setIsHostsModalOpen(false)} />
       <LegacyModal isOpen={state.isLegacyOpen} />
       <ResolverModal
@@ -150,10 +347,12 @@ function App() {
         onAdd={actions.addIp}
       />
       <ProxyModal isOpen={state.isProxyModalOpen} onClose={() => prefs.setIsProxyModalOpen(false)} />
-      <NewsModal
-        updateAvailable={state.updateAvailable}
-        onClose={() => prefs.setIsNewsModalOpen(false)}
-      />
+      {state.isNewsModalOpen && state.isUpdateChecked && (
+        <NewsModal
+          updateAvailable={state.updateAvailable}
+          onClose={() => prefs.setIsNewsModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

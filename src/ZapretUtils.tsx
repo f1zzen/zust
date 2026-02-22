@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { notify } from './Notifications';
 
@@ -11,6 +11,26 @@ export function ZapretUtils() {
     const [configs, setConfigs] = useState<string[]>([]);
     const [selectedConfig, setSelectedConfig] = useState("");
     const [selectedIpset, setSelectedIpset] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (status === 'loading') return;
+
+        const interval = setInterval(async () => {
+            const isActive = await invoke<boolean>('is_active');
+
+            if (!isActive && status === 'running') {
+                setStatus('stopped');
+                setStratName("Отсутствует");
+            }
+            else if (isActive && status === 'stopped') {
+                const name = await invoke<string>('get_strategy');
+                setStratName(name);
+                setStatus('running');
+            }
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [status]);
 
     const checkZapret = async () => {
         const name = await invoke<string>('get_strategy');
@@ -33,17 +53,24 @@ export function ZapretUtils() {
         setStatus('loading');
         const configName = forcedConfig || selectedConfig || localStorage.getItem("selected_strategy") || "";
         const ipsetConfig = forcedIpset || selectedIpset || localStorage.getItem("selected_ipset") || DEFAULT_IPSET;
-        const idx = configs.indexOf(configName) + 1;
+
+        let currentConfigs = configs;
+        if (configName && !currentConfigs.includes(configName)) {
+            currentConfigs = await invoke<string[]>('get_list_strategies');
+            setConfigs(currentConfigs);
+        }
+
+        const idx = currentConfigs.indexOf(configName) + 1;
         if (idx <= 0) {
             console.error("Config not found:", configName);
-            return setStatus('stopped');
+            setStatus('stopped');
+            return;
         }
 
         try {
             await invoke('start_service', { args: { index: idx, ipset_config: ipsetConfig } });
             setTimeout(checkZapret, 500);
         } catch (e) {
-            console.error(e);
             setStatus('stopped');
         }
     };
@@ -51,12 +78,11 @@ export function ZapretUtils() {
     const init = async () => {
         const list = await invoke<string[]>('get_list_strategies');
         setConfigs(list);
-
         const currentRunning = await invoke<string>('get_strategy');
+        const isActive = await invoke<boolean>('is_active');
         const savedIpset = localStorage.getItem("selected_ipset") || DEFAULT_IPSET;
         setSelectedIpset(savedIpset);
-
-        if (currentRunning !== "Отсутствует") {
+        if (isActive && currentRunning !== "Отсутствует") {
             setStratName(currentRunning);
             setSelectedConfig(currentRunning);
             setStatus('running');
@@ -65,9 +91,11 @@ export function ZapretUtils() {
             if (savedConfig && list.includes(savedConfig)) {
                 setSelectedConfig(savedConfig);
             }
+            setStratName("Отсутствует");
             setStatus('stopped');
         }
-        return { list, currentRunning };
+
+        return { list, currentRunning, isActive };
     };
 
     return {

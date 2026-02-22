@@ -22,7 +22,7 @@ export const HomePage = ({
     const actionButtons = [
         { type: 'separator', label: 'Обходы' },
         {
-            title: 'etc/hosts',
+            title: 'DNS Override',
             subtitle: 'Доступ к Gemini, СhatGPT, Spotify и т.п.',
             variant: 'hosts',
             icon: ICONS.hosts,
@@ -69,14 +69,33 @@ export const HomePage = ({
                 </div>
             </div>
 
-            <button className={`hero-card ${status}`} onClick={handleToggle} disabled={status === 'loading'}>
-                <div className="inner-glow"></div>
-                <div className="visual-box">
-                    <div className={`icon-wrapper stopped ${status === 'stopped' ? 'visible' : ''}`}>X</div>
-                    <div className={`icon-wrapper loading ${status === 'loading' ? 'visible' : ''}`}>↺</div>
-                    <div className={`icon-wrapper running ${status === 'running' ? 'visible' : ''}`}>✦</div>
-                </div>
-            </button>
+            <div className="hero-container">
+                <button
+                    className={`hero-reactor ${status}`}
+                    onClick={handleToggle}
+                    disabled={status === 'loading'}
+                >
+                    <div className="reactor-aura"></div>
+                    <div className="reactor-core">
+                        <div className="core-inner">
+                            <div className={`status-icon stopped ${status === 'stopped' ? 'visible' : ''}`}>
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </div>
+
+                            <div className={`status-icon loading ${status === 'loading' ? 'visible' : ''}`}>
+                                <div className="spinner-arc"></div>
+                            </div>
+
+                            <div className={`status-icon running ${status === 'running' ? 'visible' : ''}`}>
+                                <span className="sparkle-diamond">✦</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="reactor-ring"></div>
+                    <div className="reactor-ring ring-2"></div>
+                </button>
+            </div>
 
             <div className={`status-indicator ${status}`}>
                 {status === 'stopped' && 'Выключен'}

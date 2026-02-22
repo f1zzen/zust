@@ -95,17 +95,38 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
         setExpanded(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
     };
 
+    const selectAll = () => {
+        setSelected(Object.keys(data));
+    };
+
+    const deselectAll = () => {
+        setSelected([]);
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
-            const formattedLines = selected.flatMap(cat => [
-                `# ${cat}`,
-                ...data[cat],
-                ""
-            ]);
-            await invoke("save_hosts_selection", { selectedLines: formattedLines });
+            const malwLines: string[] = [];
+            const flowLines: string[] = [];
+
+            selected.forEach(cat => {
+                const lines = data[cat];
+                if (cat === "Discord & Telegram") {
+                    flowLines.push(`# ${cat}`, ...lines);
+                } else {
+                    malwLines.push(`# ${cat}`, ...lines);
+                }
+            });
+            let finalString = "";
+            if (malwLines.length > 0) {
+                finalString += `### dns.malw.link: hosts file\n${malwLines.join('\n')}\n### dns.malw.link: end hosts file\n\n`;
+            }
+            if (flowLines.length > 0) {
+                finalString += `### flowseal: hosts file\n${flowLines.join('\n')}\n### flowseal: end hosts file\n`;
+            }
+
+            await invoke("save_hosts_selection", { selectedLines: finalString });
             notify("Метод hosts успешно применен!", "success");
-            notify("Для некоторых приложений потребуется перезагрузка.", "success");
             onClose();
         } catch (e) {
             notify("Произошла ошибка во время записи hosts.", "error");
@@ -220,6 +241,10 @@ export const HostsModal = ({ isOpen, onClose }: Props) => {
                             </div>
                             {!loading && !error && (
                                 <div className="clear-hosts-container">
+                                    <div className="selection-controls" style={{ paddingLeft: '10px' }}>
+                                        <button className="select-strat-btn" onClick={selectAll}>Выбрать всё</button>
+                                        <button className="select-strat-btn" style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', color: '#888' }} onClick={deselectAll}>Убрать всё</button>
+                                    </div>
                                     <button
                                         className="clear-hosts-btn"
                                         onClick={handleClear}

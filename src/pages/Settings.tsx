@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
 import { log } from '../Logic'
 import { notify } from '../Notifications'
@@ -9,6 +9,15 @@ interface SettingItemProps {
     emoji: string;
     enabled: boolean;
     onToggle: () => void;
+}
+
+interface ISettings {
+    notifications: boolean;
+    minimizeToTray: boolean;
+    animationDisabled: boolean;
+    gameFilter: boolean;
+    refreshBridges: boolean;
+    [key: string]: any;
 }
 
 const SettingItem = ({ label, description, emoji, enabled, onToggle }: SettingItemProps) => (
@@ -27,45 +36,42 @@ const SettingItem = ({ label, description, emoji, enabled, onToggle }: SettingIt
 );
 
 export const SettingsPage = () => {
-    const [settings, setSettings] = useState({
-        notifications: true,
-        minimizeToTray: true,
-        animationDisabled: false,
-        devTools: false,
-        gameFilter: false
-    });
+    const [settings, setSettings] = useState<ISettings | null>(null);
 
-    const cooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const fetchData = async () => {
+        try {
+            const res = await invoke<ISettings>('load_settings');
+            setSettings(res);
+        } catch (e) {
+            log("Ошибка загрузки настроек: " + e);
+        }
+    };
 
     useEffect(() => {
-        invoke('load_settings')
-            .then((res: any) => setSettings(res))
-            .catch(console.error);
+        fetchData();
+        window.addEventListener('settings-changed', fetchData);
+        return () => window.removeEventListener('settings-changed', fetchData);
     }, []);
 
+    const toggle = async (key: string) => {
+        if (!settings) return;
 
-    const toggle = async (key: keyof typeof settings) => {
         const newValue = !settings[key];
         const newSettings = { ...settings, [key]: newValue };
         setSettings(newSettings);
-        if (cooldown.current) {
-            clearTimeout(cooldown.current)
-        }
+
         try {
             await invoke('save_settings', { settings: newSettings });
+            window.dispatchEvent(new Event('settings-changed'));
             switch (key) {
                 case 'animationDisabled':
-                    document.body.classList.toggle('no-animations', newValue);
-                    if (newValue) {
-                        notify("Анимации включены!", "success")
-                    } else {
-                        notify("Анимации выключены!", "success")
-                    }
+                    notify(newValue ? "Анимации выключены" : "Анимации включены", "success");
                     break;
+
                 case 'gameFilter':
                     await invoke('game_filter_toggle', { enabled: newValue });
-                    notify("Перезапускаю сборку..");
-                    log(`gameFilter ${newValue ? 'выключен' : 'выключен'}`);
+                    notify("Обновление конфигурации...");
+
                     const currentStrat = await invoke<string>('get_strategy');
                     if (currentStrat !== "None") {
                         await invoke('stop_service');
@@ -82,15 +88,15 @@ export const SettingsPage = () => {
                     }
                     notify("Сборка перезапущена!", "success");
                     break;
-                case 'notifications':
-                    window.dispatchEvent(new Event('settings-updated'));
-                    break;
             }
         } catch (err) {
-            notify("Случилась непредвиденная ошибка.", "error")
-            log("" + err)
+            notify("Ошибка сохранения", "error");
+            fetchData();
         }
     };
+
+    if (!settings) return null;
+
     return (
         <div className="content">
             <div className="strategy-header">
@@ -125,13 +131,22 @@ export const SettingsPage = () => {
                     enabled={settings.animationDisabled}
                     onToggle={() => toggle('animationDisabled')}
                 />
+
                 <h2 className="section-title" style={{ marginTop: '20px' }}>Zapret</h2>
                 <SettingItem
                     label="GameFilter"
-                    description='"Переключение режима обхода для игр (и других сервисов, использующих UDP и TCP на портах выше 1023)." - flowseal'
+                    description='"Переключение режима обхода для игр (и других сервисов, использующих UDP и TCP на портах выше 1023)."'
                     emoji="🕹️"
                     enabled={settings.gameFilter}
                     onToggle={() => toggle('gameFilter')}
+                />
+                <h2 className="section-title" style={{ marginTop: '20px' }}>VPN*</h2>
+                <SettingItem
+                    label="Обновление мостов"
+                    description='Поиск новых мостов для файла torrc при каждом новом подключении к сети TOR.'
+                    emoji="🌉"
+                    enabled={settings.refreshBridges}
+                    onToggle={() => toggle('refreshBridges')}
                 />
             </div>
         </div>

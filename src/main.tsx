@@ -2,9 +2,13 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./App.css";
 
-const rootElement = document.getElementById("root") as HTMLElement;
-const root = ReactDOM.createRoot(rootElement);
+import { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
 
-root.render(
-  <App />
-);
+initParticlesEngine(async (engine) => {
+  await loadSlim(engine);
+}).then(() => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <App />
+  );
+});

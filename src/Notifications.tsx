@@ -40,8 +40,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     useEffect(() => {
         loadStatus();
         const handleUpdate = () => loadStatus();
-        window.addEventListener('settings-updated', handleUpdate);
-        return () => window.removeEventListener('settings-updated', handleUpdate);
+        window.addEventListener('settings-changed', handleUpdate);
+        return () => window.removeEventListener('settings-changed', handleUpdate);
     }, []);
 
     const showNotify = useCallback((message: string, type: NotificationType = 'info') => {

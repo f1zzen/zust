@@ -8,9 +8,10 @@ pub struct Settings {
     pub auto_start: bool,
     pub notifications: bool,
     pub minimize_to_tray: bool,
-    pub animation_enabled: bool,
+    pub animation_disabled: bool,
     pub devtools: bool,
     pub game_filter: bool,
+    pub refresh_bridges: bool,
 }
 pub fn get_config_path() -> PathBuf {
     let mut path = std::env::current_exe().unwrap_or_default();
@@ -37,8 +38,9 @@ pub fn load_settings() -> Settings {
         auto_start: false,
         notifications: true,
         minimize_to_tray: true,
-        animation_enabled: true,
+        animation_disabled: false,
         devtools: false,
         game_filter: false,
+        refresh_bridges: true,
     }
 }

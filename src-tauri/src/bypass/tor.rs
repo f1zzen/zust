@@ -163,13 +163,50 @@ impl Tor {
     }
 
     pub fn sync_resources(app: &AppHandle) -> Result<(), String> {
-        let target_bin = Self::tor_data_path(app, "tor/tor.exe");
+        let target_dir = Self::tor_data_path(app, "tor");
+        let target_bin = target_dir.join("tor.exe");
+
         if target_bin.exists() {
             return Ok(());
         }
-        let target = Self::tor_data_path(app, "");
-        let _ = fs::create_dir_all(&target);
-        Ok(())
+
+        let mut source_dir = std::env::current_exe().map_err(|e| e.to_string())?;
+        source_dir.pop();
+        source_dir.push("tor");
+
+        if source_dir.exists() && source_dir.is_dir() {
+            fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+            fn copy_recursive(src: &PathBuf, dst_dir: &PathBuf) -> u32 {
+                let mut count = 0;
+                let targets = ["tor.exe", "geoip", "geoip6"];
+
+                if let Ok(entries) = fs::read_dir(src) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            count += copy_recursive(&path, dst_dir);
+                        } else if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                            if targets.contains(&file_name) {
+                                let dest = dst_dir.join(file_name);
+                                if fs::copy(&path, &dest).is_ok() {
+                                    count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                count
+            }
+
+            let copied = copy_recursive(&source_dir, &target_dir);
+
+            if copied > 0 {
+                info(app, &format!("[TOR] Успешно перенесено файлов: {}", copied));
+                return Ok(());
+            }
+        }
+
+        Err(format!("BINARY_NOT_FOUND ->> {:?}", source_dir))
     }
 
     pub fn switch_proxy(enable: bool) -> Result<(), std::io::Error> {

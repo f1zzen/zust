@@ -112,6 +112,7 @@ export const ProxyPage = () => {
                 <div className="mode-btn-wrapper">
                     <button
                         className={`mode-btn ${mode === 'vpn' ? 'active' : ''}`}
+                        onClick={() => !isPending && handleModeChange('vpn')}
                     >
                         VPN*
                     </button>

@@ -3,6 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { useModalAnimation } from "./useModalAnimation";
 import { notify } from "../Notifications";
 import { log } from "../Logic";
+import {
+    ModalBlock,
+    ModalHeader,
+    ModalContent,
+    ModalFooter,
+    SelectButton,
+    InfoHeader,
+    WarningHeader
+} from "@/Buttons";
+import { cn } from "@/lib/utils";
 
 interface Props {
     isOpen: boolean;
@@ -16,25 +26,34 @@ interface Props {
 }
 
 const TYPE_CONFIG = {
-    strategy: { label: 'STRATEGY' },
-    ipset: { label: 'IPSET' },
-    hostlist: { label: 'LIST-GENERAL' },
-    configure_zapret: { label: 'CONFIGURATION' },
-    restore_zapret: { label: 'RECOVERY' }
+    strategy: { label: 'STRATEGY', icon: '🎯' },
+    ipset: { label: 'IPSET', icon: '📋' },
+    hostlist: { label: 'LIST-GENERAL', icon: '🌐' },
+    configure_zapret: { label: 'CONFIGURATION', icon: '⚙️' },
+    restore_zapret: { label: 'RECOVERY', icon: '⚠️' }
 };
 
 const ConfigNode = ({ label, status, title, desc, icon, isError, isDisabled }: any) => (
-    <div className={`v3-config-node ${isError ? 'is-danger' : 'is-primary'} ${isDisabled ? 'disabled' : ''}`}>
-        <div className="node-meta">
-            <span className="node-label">{label}</span>
-            <span className={`node-status ${isError ? 'error' : 'active'}`}>{status}</span>
+    <div className={cn(
+        "flex items-center gap-4 rounded-xl border p-3.5 transition-all bg-white/[0.03]",
+        isError ? "border-red-500/30 bg-red-500/5" : "border-white/5",
+        isDisabled && "opacity-50"
+    )}>
+        <div className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5 text-purple-400",
+            isError && "text-red-400"
+        )}>
+            {icon}
         </div>
-        <div className="node-main">
-            <div className="node-icon">{icon}</div>
-            <div className="node-content">
-                <div className="node-title">{title || '—'}</div>
-                <div className="node-desc">{desc}</div>
+        <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/30">{label}</span>
+                <span className={cn("text-[10px] font-bold px-1.5 rounded bg-white/5", isError ? "text-red-400" : "text-green-400")}>
+                    {status}
+                </span>
             </div>
+            <div className="truncate text-[14px] font-medium text-white/90">{title || '—'}</div>
+            <div className="text-[11px] text-white/40 leading-tight">{desc}</div>
         </div>
     </div>
 );
@@ -74,16 +93,12 @@ export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
         if (isOpen) checkResources();
     }, [isOpen, data, configData]);
 
-    if (!shouldRender || !data) return null;
-
-    const currentConfig = TYPE_CONFIG[data.type] || { label: 'UNKNOWN' };
-
     const handleConfirm = async () => {
-        if (loading || (data.type === 'configure_zapret' && missingResources.length > 0)) return;
+        if (loading || (data?.type === 'configure_zapret' && missingResources.length > 0)) return;
         setLoading(true);
 
         try {
-            if (data.type === 'configure_zapret' && configData) {
+            if (data?.type === 'configure_zapret' && configData) {
                 const fullStrategyName = configData.strategy.endsWith('.zapret') ? configData.strategy : `${configData.strategy}.zapret`;
                 let fullIpsetName = configData.ipset_config;
 
@@ -110,9 +125,8 @@ export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
                 await state.zapret.startProcess(fullStrategyName, fullIpsetName);
 
                 window.dispatchEvent(new Event('settings-changed'));
-                notify("Конфигурация применена и запущена", "success");
-
-            } else if (data.type === 'restore_zapret') {
+                notify("Конфигурация применена", "success");
+            } else if (data?.type === 'restore_zapret') {
                 if (state.zapret.status === 'running') await state.zapret.stopProcess();
                 await invoke('restore_zapret_files');
                 localStorage.removeItem("selected_strategy");
@@ -120,7 +134,6 @@ export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
                 notify("Система восстановлена", "success");
                 setTimeout(() => window.location.reload(), 1000);
             }
-
             onClose();
         } catch (e) {
             log(`DeepLink Error: ${e}`);
@@ -130,36 +143,36 @@ export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
         }
     };
 
+    if (!shouldRender || !data) return null;
+    const currentConfig = TYPE_CONFIG[data.type] || { label: 'UNKNOWN', icon: '❓' };
+
     return (
-        <div className={`modal-overlay ${isAnimatingOut ? 'closing' : ''}`} onClick={onClose}>
-            <div className="modal-content hosts-modal" onClick={e => e.stopPropagation()}>
-                <div className="v2-header">
-                    <div className="modal-title-row">
-                        <h3>
-                            {data.type === 'configure_zapret' ? 'Настройка системы' :
-                                data.type === 'restore_zapret' ? 'Восстановление' : 'Импорт объекта'}
-                        </h3>
-                        <span className="hosts-badge" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
-                            {currentConfig.label}
-                        </span>
-                    </div>
-                </div>
+        <div
+            className={cn(
+                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
+                isAnimatingOut ? "opacity-0" : "opacity-100"
+            )}
+            onClick={onClose}
+        >
+            <ModalBlock onClick={(e: any) => e.stopPropagation()}>
+                <ModalHeader
+                    title={data.type === 'configure_zapret' ? 'Настройка системы' :
+                        data.type === 'restore_zapret' ? 'Восстановление' : 'Импорт объекта'}
+                    status={currentConfig.label}
+                    icon={currentConfig.icon}
+                    description="Обработка входящего запроса конфигурации"
+                />
 
-                <div className="modal-body">
-                    <div className="v3-info-grid" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ fontSize: '10px', color: '#666', fontWeight: '900', letterSpacing: '1px' }}>
-                            {data.type === 'configure_zapret' ? 'ПАРАМЕТРЫ КОНФИГУРАЦИИ' :
-                                data.type === 'restore_zapret' ? 'ДЕЙСТВИЕ ВОССТАНОВЛЕНИЯ' : 'ДЕТАЛИ ИМПОРТА'}
-                        </div>
-
+                <ModalContent>
+                    <div className="flex flex-col gap-3">
                         {data.type === 'configure_zapret' && configData && (
-                            <div className={`v3-config-container ${missingResources.length > 0 ? 'has-critical-errors' : ''}`}>
+                            <>
                                 <ConfigNode
                                     label="СТРАТЕГИЯ"
                                     status={missingResources.includes('strategy') ? 'ОТСУТСТВУЕТ' : 'ПРИСУТСТВУЕТ'}
                                     isError={missingResources.includes('strategy')}
                                     title={configData.strategy}
-                                    desc="Стратегия для обхода блокировок."
+                                    desc="Основной набор правил для обхода."
                                     icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>}
                                 />
                                 <ConfigNode
@@ -167,89 +180,68 @@ export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
                                     status={missingResources.includes('ipset') ? 'ОТСУТСТВУЕТ' : 'ПРИСУТСТВУЕТ'}
                                     isError={missingResources.includes('ipset')}
                                     title={configData.ipset_config}
-                                    desc="Список IP для обхода блокировок."
+                                    desc="Список адресов для фильтрации."
                                     icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 5H3M15 12H3M17 19H3" /></svg>}
                                 />
-                                <ConfigNode
-                                    label="ИГРОВОЙ ФИЛЬТР"
-                                    status={configData.game_filter === 'true' ? 'ВКЛ.' : 'ВЫКЛ.'}
-                                    isDisabled={configData.game_filter !== 'true'}
-                                    title="Игровой фильтр"
-                                    desc="Специальный фильтр для игр."
-                                    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>}
-                                />
-                            </div>
+                                <div className={cn(
+                                    "mt-2 p-3 rounded-xl border text-[12px] transition-colors",
+                                    missingResources.length > 0
+                                        ? "bg-red-500/10 border-red-500/20 text-red-400"
+                                        : "bg-purple-500/5 border-purple-500/20 text-purple-300/80"
+                                )}>
+                                    {missingResources.length > 0
+                                        ? "Некоторые файлы отсутствуют в системе. (￣ ￣|||)"
+                                        : "Все компоненты найдены и готовы к работе."}
+                                </div>
+                            </>
                         )}
 
                         {data.type === 'restore_zapret' && (
-                            <div className="v3-restore-wrapper">
-                                <div className="v3-restore-content">
-                                    <div className="restore-icon-container">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="40">
-                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round" />
-                                            <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                    </div>
-                                    <div className="restore-text-block">
-                                        <div className="restore-system-label">ОПАСНАЯ_ЗОНА</div>
-                                        <h4 className="restore-main-title">Полный сброс параметров</h4>
-                                        <p className="restore-description">Удалит стратегии, IPSET конфиги и сбросит систему до заводских настроек.</p>
-                                    </div>
-                                </div>
+                            <div className="flex flex-col gap-4">
+                                <WarningHeader title="Полный сброс параметров" description="Это действие удалит все ваши стратегии и вернет настройки к начальным." />
+                                <InfoHeader
+                                    description="Если вас попросили использовать это для восстановления работы запрета, убедитесь что кастомные стратегии/конфиги (если есть) сохранены, и перенесены в безопасное место."
+                                    more="Если нет, то смело нажимайте на кнопку ниже."
+                                />
                             </div>
                         )}
 
                         {!['configure_zapret', 'restore_zapret'].includes(data.type) && (
-                            <div className="v3-import-container">
-                                <div className="v3-object-card">
-                                    <div className="object-info">
-                                        <div className="object-label">ФАЙЛ ДЛЯ ИЗМЕНЕНИЯ</div>
-                                        <div className="object-name">{data.name || 'External_Resource'}</div>
-                                    </div>
-                                    <div className="object-icon">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-                                    </div>
+                            <div className="space-y-3">
+                                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                                    <div className="text-[10px] text-white/30 font-bold uppercase mb-1">ФАЙЛ</div>
+                                    <div className="text-white font-mono text-sm">{data.name || 'External_Resource'}</div>
                                 </div>
-                                <div className="v3-source-monitor">
-                                    <div className="monitor-header">
-                                        <span className="monitor-title">ИСТОЧНИК</span>
-                                    </div>
-                                    <div className="monitor-viewport">
-                                        <div className="scan-line"></div>
-                                        <code className="source-url" style={{ wordBreak: 'break-all', fontSize: '11px' }}>
-                                            {data.payload}
-                                        </code>
-                                    </div>
+                                <div className="p-3 rounded-xl bg-black/20 border border-white/5 font-mono text-[11px] text-purple-300/70 break-all max-h-32 overflow-y-auto">
+                                    {data.payload}
                                 </div>
                             </div>
                         )}
                     </div>
+                </ModalContent>
 
-                    {data.type === 'configure_zapret' && (
-                        <div style={{
-                            margin: '0 24px 24px', display: 'flex', gap: '12px', padding: '16px',
-                            background: missingResources.length > 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(168, 85, 247, 0.08)',
-                            borderRadius: '12px', border: `1px solid ${missingResources.length > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(168, 85, 247, 0.2)'}`
-                        }}>
-                            <span style={{ fontSize: '12px', color: '#bbb' }}>
-                                {missingResources.length > 0 ? "Файлы не найдены! Вы установили всё необходимое? (￣ ￣|||)" : "Все компоненты найдены. Можно запускать."}
-                            </span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="modal-footer">
-                    <button className="close-modal-btn" onClick={onClose} disabled={loading}>Отмена</button>
+                <ModalFooter>
                     <button
-                        className={`save-modal-btn ${missingResources.length > 0 ? 'btn-disabled' : ''}`}
-                        onClick={handleConfirm}
-                        disabled={loading || (data.type === 'configure_zapret' && missingResources.length > 0)}
-                        style={{ background: data.type === 'restore_zapret' ? '#ef4444' : undefined }}
+                        onClick={onClose}
+                        className="px-4 py-2 text-[13px] text-white/40 hover:text-white transition-colors"
                     >
-                        {loading ? "..." : data.type === 'restore_zapret' ? "Сбросить всё" : "Выполнить"}
+                        Отмена
                     </button>
-                </div>
-            </div>
+
+                    <SelectButton
+                        onClick={handleConfirm}
+                        className={cn(
+                            (loading || (data.type === 'configure_zapret' && missingResources.length > 0)) && "pointer-events-none opacity-50"
+                        )}
+                        front={
+                            <div className="flex items-center gap-2">
+                                {loading ? "Выполнение..." : data.type === 'restore_zapret' ? "Сбросить всё" : "Применить"}
+                            </div>
+                        }
+                        back="Подтвердить"
+                    />
+                </ModalFooter>
+            </ModalBlock>
         </div>
     );
 };

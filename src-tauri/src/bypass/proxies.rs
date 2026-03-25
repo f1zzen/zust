@@ -37,7 +37,13 @@ impl Proxies {
             let parsed = match Url::parse(clean_address) {
                 Ok(p) => p,
                 Err(_) => {
-                    info(&app, &format!("url parse err: {}", clean_address));
+                    info(
+                        &app,
+                        &format!(
+                            "Ошибка парсинга ссылки, судя по всему неправильный тип. Если вы столкнулись с этой ошибкой, то вероятнее всего это наша проблема: {}",
+                            clean_address
+                        ),
+                    );
                     return None;
                 }
             };
@@ -66,12 +72,12 @@ impl Proxies {
         match timeout(Duration::from_secs(3), TcpStream::connect(&addr)).await {
             Ok(Ok(_)) => {
                 let ms = start.elapsed().as_millis() as u64;
-                let url = format!("http://ip-api.com/json/{}?fields=countryCode", ip_str);
+                let url = format!("https://ipwhois.app/json/{}", ip_str);
 
-                let country_code = match timeout(Duration::from_secs(2), reqwest::get(url)).await {
+                let country_code = match timeout(Duration::from_secs(5), reqwest::get(url)).await {
                     Ok(Ok(response)) => {
                         let json: serde_json::Value = response.json().await.unwrap_or_default();
-                        json["countryCode"].as_str().unwrap_or("??").to_string()
+                        json["country_code"].as_str().unwrap_or("??").to_string()
                     }
                     _ => "??".to_string(),
                 };

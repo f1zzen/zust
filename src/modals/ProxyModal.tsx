@@ -1,214 +1,189 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useModalAnimation } from "./useModalAnimation";
-import { log } from "../Logic";
+import { DropDownItemStyle, ModalBlock, ModalContent, ModalFooter, ModalHeader, SelectButton } from "@/Buttons";
+import { cn } from "@/lib/utils";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/animate-ui/components/radix/dropdown-menu";
+import { DropdownMenuItem } from "@/components/animate-ui/primitives/radix/dropdown-menu";
+import React from "react";
 
-interface ProxyItem {
-    address: string;
-    ping: number | null | 'loading';
-    country?: string;
-}
+const ProxyRow = React.forwardRef<HTMLDivElement, { p: any; onClick: (addr: string) => void }>(
+    ({ p, onClick, ...props }, ref) => {
+        const { onClick: radixOnClick, ...restProps } = props as any;
+        return (
+            <div
+                ref={ref}
+                {...restProps}
+                onClick={(e) => {
+                    radixOnClick?.(e);
+                    onClick(p.address);
+                }}
+                className="group flex items-center gap-4 rounded-xl border border-transparent bg-white/[0.03] p-3 transition-all hover:bg-white/[0.06] hover:border-white/5 cursor-pointer active:scale-[0.99]"
+            >
+                <div className="flex w-6 shrink-0 justify-center">
+                    {p.ping === 'loading' ? (
+                        <span className="text-base animate-pulse">⏳</span>
+                    ) : p.country && p.country !== "??" ? (
+                        <img
+                            src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${p.country.toUpperCase()}.svg`}
+                            className="w-5 rounded-[2px] shadow-sm"
+                        />
+                    ) : (
+                        <span className="text-base text-white/40">🌐</span>
+                    )}
+                </div>
+                <div className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-300",
+                    p.ping === 'loading' ? "bg-purple-500" : (p.ping === null ? "bg-red-500" : "bg-green-500")
+                )} />
+                <span className="flex-1 truncate font-['JetBrains_Mono'] text-[13px] text-white/70 group-hover:text-white transition-colors">
+                    {p.address}
+                </span>
+                <div className="shrink-0 text-right min-w-[65px]">
+                    {p.ping === 'loading' ? (
+                        <span className="inline-block animate-spin text-purple-400 text-xs">↻</span>
+                    ) : (
+                        <span className={cn(
+                            "text-[11px] font-bold tracking-tight",
+                            p.ping === null ? "text-red-400/80" : "text-green-400"
+                        )}>
+                            {p.ping === null ? 'OFFLINE' : `${p.ping}ms`}
+                        </span>
+                    )}
+                </div>
+            </div>
+        );
+    }
+);
+
+ProxyRow.displayName = "ProxyRow";
 
 export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
     const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
-    const [proxies, setProxies] = useState<ProxyItem[]>([]);
-    const [showNotice, setShowNotice] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
-
-    const handleProxyClick = async (address: string) => {
-        setShowNotice(address);
-        setCopied(false);
-
-        try {
-            await invoke("open_link", { url: address });
-        } catch (e) {
-            log("" + e);
-        }
-    };
-
-    const handleCopy = (text: string) => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
-    const handleClose = () => {
-        if (showNotice) {
-            setShowNotice(null);
-            setCopied(false);
-        } else {
-            onClose();
-        }
-    };
+    const [proxies, setProxies] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
     const loadAndPing = async () => {
+        setLoading(true);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
         try {
-            const list: string[] = await invoke("get_proxy_list");
+            const [list] = await Promise.all([
+                invoke<string[]>("get_proxy_list"),
+                new Promise(resolve => setTimeout(resolve, 600))
+            ]);
+
+            clearTimeout(timeoutId);
             setProxies(list.map(addr => ({ address: addr, ping: 'loading' })));
 
-            list.forEach(async (addr, index) => {
+            list.forEach(async (addr) => {
                 try {
-                    const result = await invoke<{ ping: number; country_code: string } | null>(
-                        "check_proxy_ping",
-                        { address: addr }
-                    );
-                    setProxies(prev => prev.map((p, i) => i === index ? {
-                        ...p,
-                        ping: result ? result.ping : null,
-                        country: result ? result.country_code : undefined
-                    } : p));
+                    const result = await invoke<any>("check_proxy_ping", { address: addr });
+                    setProxies(prev => prev.map(p =>
+                        p.address === addr ? {
+                            ...p,
+                            ping: result ? result.ping : null,
+                            country: result ? result.country_code : "??"
+                        } : p
+                    ));
                 } catch (e) {
-                    console.error(e);
+                    setProxies(prev => prev.map(p =>
+                        p.address === addr ? { ...p, ping: null, country: "??" } : p
+                    ));
                 }
             });
-        } catch (e) { console.error(e); }
+        } catch (e: any) {
+            if (e.name === 'AbortError') console.error("Timeout");
+            if (proxies.length === 0) onClose();
+        } finally {
+            setLoading(false);
+        }
     };
 
-    useEffect(() => {
-        if (isOpen) loadAndPing();
-    }, [isOpen]);
+    useEffect(() => { if (isOpen) loadAndPing(); }, [isOpen]);
 
     if (!shouldRender) return null;
 
     return (
-        <div className={`modal-overlay ${isAnimatingOut ? 'closing' : ''}`} onClick={handleClose}>
-            <div className="modal-content hosts-modal" onClick={e => e.stopPropagation()}>
+        <div
+            className={cn(
+                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
+                isAnimatingOut ? "opacity-0" : "opacity-100"
+            )}
+            onClick={onClose}
+        >
+            <ModalBlock
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+                <ModalHeader
+                    title="Прокси для Telegram"
+                    status={proxies.length + " доступно"}
+                    icon="🛫"
+                    description="Используйте MTProto для стабильного соединения"
+                />
 
-                <div className="v2-header">
-                    <div className="modal-header-left">
-                        <div className="modal-title-row">
-                            <h3>Telegram | Proxies</h3>
-                            <span className="hosts-badge" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#d8b4fe' }}>
-                                {proxies.length} прокси
-                            </span>
+                <ModalContent>
+                    {loading ? (
+                        <div className="flex h-44 flex-col items-center justify-center gap-3 animate-pulse text-white/30 text-sm font-['Onest']">
+                            <span className="text-2xl">?</span>
+                            Получение списка прокси...
                         </div>
-                        <div className="hosts-update-info">
-                            <span className="description-icon">🛫</span>
-                            <span>Прокси MTProto для обхода телеграмма!</span>
+                    ) : (
+                        <div>
+                            {proxies.map((p, i) => {
+                                const proxyUrl = p.address.startsWith('tg://')
+                                    ? p.address
+                                    : `tg://socks?server=${p.address.split(':')[0]}&port=${p.address.split(':')[1] || '1080'}`;
+
+                                return (
+                                    <DropdownMenu key={i}>
+                                        <DropdownMenuTrigger asChild>
+                                            <ProxyRow p={p} onClick={() => { }} />
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent
+                                            className="w-64 p-1.5 bg-[#0a0514]/90 border border-white/5 rounded-xl shadow-2xl backdrop-blur-md z-[1101]"
+                                            sideOffset={8}
+                                        >
+                                            <DropdownMenuGroup className="space-y-1">
+                                                <DropdownMenuLabel className="px-3 py-2 text-[11px] font-medium text-white/30 uppercase tracking-widest">
+                                                    Основные действия
+                                                </DropdownMenuLabel>
+                                                <DropdownMenuItem
+                                                    onSelect={async () => await invoke("open_link", { url: proxyUrl })}
+                                                    className={DropDownItemStyle}
+                                                >
+                                                    Открыть в ТГ
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onSelect={async () => await navigator.clipboard.writeText(proxyUrl)}
+                                                    className={DropDownItemStyle}
+                                                >
+                                                    Скопировать ссылку
+                                                </DropdownMenuItem>
+                                            </DropdownMenuGroup>
+                                            <DropdownMenuSeparator className="h-px bg-white/5 my-1.5" />
+                                            <DropdownMenuItem className="flex items-center px-3 py-2 text-sm text-red-400/70 bg-transparent rounded-lg cursor-pointer outline-none transition-all data-[highlighted]:!bg-red-500/10 data-[highlighted]:!text-red-400 active:!scale-[0.96]">
+                                                Отмена
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                );
+                            })}
                         </div>
-                    </div>
-                    <div className="header-decoration">
-                        <div className="glow-dot" style={{ background: '#a855f7', boxShadow: '0 0 10px #a855f7' }}></div>
-                    </div>
-                </div>
+                    )}
+                </ModalContent>
 
-                <div className="modal-body custom-scrollbar" style={{ overflowX: 'hidden' }}>
-                    <div className="category-list" style={{ paddingLeft: '8px' }}>
-                        {proxies.map((p, i) => (
-                            <div key={i} className="category-group" style={{ cursor: 'pointer' }} onClick={() => handleProxyClick(p.address)}>
-                                <div className="category-header" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div style={{ width: '24px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-                                        {p.ping === 'loading' ? (
-                                            <span style={{ fontSize: '16px' }}>⏳</span>
-                                        ) : p.country && p.country !== "??" ? (
-                                            <img
-                                                src={`https://purecatamphetamine.github.io/country-flag-icons/3x2/${p.country.toUpperCase()}.svg`}
-                                                style={{
-                                                    width: '20px',
-                                                    height: 'auto',
-                                                    borderRadius: '2px',
-                                                    filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.2))'
-                                                }}
-                                                alt={p.country}
-                                            />
-                                        ) : (
-                                            <span style={{ fontSize: '16px' }}>🌐</span>
-                                        )}
-                                    </div>
-                                    <div
-                                        className="host-indicator-dot"
-                                        style={{
-                                            background: p.ping === 'loading' ? '#a855f7' : (p.ping === null ? '#ef4444' : '#22c55e'),
-                                            opacity: 1,
-                                            flexShrink: 0
-                                        }}
-                                    />
-
-                                    <span className="category-name" style={{
-                                        fontFamily: 'Jetbrains Mono',
-                                        fontSize: '13px',
-                                        maxWidth: '450px',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                        color: 'rgba(255, 255, 255, 0.8)'
-                                    }}>
-                                        {p.address}
-                                    </span>
-
-                                    <div style={{ marginLeft: 'auto', flexShrink: 0, textAlign: 'right', minWidth: '60px' }}>
-                                        {p.ping === 'loading' ? (
-                                            <span className="spinner">↻</span>
-                                        ) : (
-                                            <span style={{
-                                                color: p.ping === null ? '#ef4444' : '#22c55e',
-                                                fontSize: '11px',
-                                                fontWeight: 'bold'
-                                            }}>
-                                                {p.ping === null ? 'OFFLINE' : `${p.ping}ms`}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="modal-footer">
-                    <button className="folder-btn" onClick={loadAndPing}>
-                        Обновить
-                    </button>
-                    <button className="close-modal-btn" onClick={onClose}>
+                <ModalFooter>
+                    <SelectButton onClick={loadAndPing} front="Обновить" back="Обновить" />
+                    <button
+                        className="rounded-lg bg-white/5 px-4 py-1 font-['Onest'] text-[13px] font-bold text-white/60 transition-all hover:bg-white/10 hover:text-white active:scale-95"
+                        onClick={onClose}
+                    >
                         Закрыть
                     </button>
-                </div>
-
-            </div>
-            {showNotice && (
-                <div style={{
-                    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', zIndex: 2000, padding: '20px',
-                    background: 'rgba(10, 10, 15, 0.8)', backdropFilter: 'blur(4px)',
-                    borderRadius: 'inherit', animation: 'fadeIn 0.2s ease-out'
-                }}>
-                    <div style={{
-                        width: '100%', maxWidth: '380px', background: '#1e1e2e',
-                        border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '16px',
-                        padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-                        textAlign: 'center', position: 'relative'
-                    }}>
-                        <div style={{ fontSize: '32px', marginBottom: '12px' }}>o( ❛ᴗ❛ )o</div>
-                        <h4 style={{ margin: '0 0 10px 0', color: '#fff' }}>Запускаем Telegram</h4>
-                        <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: '1.5', marginBottom: '20px' }}>
-                            Если прокси не добавился автоматически, скопируйте ссылку и используйте её вручную.
-                        </p>
-
-                        <div
-                            onClick={() => handleCopy(showNotice)}
-                            style={{
-                                background: 'rgba(0,0,0,0.4)', padding: '12px', borderRadius: '8px',
-                                fontSize: '11px', color: copied ? '#22c55e' : '#a855f7',
-                                wordBreak: 'break-all', cursor: 'pointer', border: '1px solid rgba(168, 85, 247, 0.2)',
-                                fontFamily: 'JetBrains Mono', transition: 'all 0.2s', marginBottom: '20px'
-                            }}
-                        >
-                            {copied ? "✓ Ссылка скопирована!" : showNotice}
-                        </div>
-
-                        <button
-                            onClick={() => setShowNotice(null)}
-                            style={{
-                                background: 'rgba(168, 85, 247, 0.1)', border: '1px solid #a855f7',
-                                color: '#d8b4fe', padding: '8px 24px', borderRadius: '8px',
-                                cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Onest'
-                            }}
-                        >
-                            Понятно
-                        </button>
-                    </div>
-                </div>
-            )}
+                </ModalFooter>
+            </ModalBlock>
         </div>
     );
 };

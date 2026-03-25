@@ -1,4 +1,4 @@
-import { MenuButton } from "../MenuButton"
+import { ActionButton, MenuButton, SelectButton } from "../Buttons"
 
 const ICONS = {
     hosts: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="13 2 13 9 20 9" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>,
@@ -6,6 +6,12 @@ const ICONS = {
     ipset: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg>,
     convert: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" /><path d="M4 6v12c0 1.1.9 2 2 2h14v-4" /><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" /></svg>,
     resolver: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7V6.7l-8.9-3.3a1 1 0 0 0-.8 0L3 6.7V7c0 .3.1.7.4.9l8.1 4.1c.3.2.7.2 1 0l8.1-4.1c.3-.2.4-.6.4-.9Z" /><path d="m3 13 8.1 4.1c.3.2.7.2 1 0L21 13" /><path d="m3 18 8.1 4.1c.3.2.7.2 1 0L21 18" /></svg>
+};
+
+const STATUS = {
+    stopped: 'Выключен',
+    loading: 'Загрузка...',
+    running: 'Работает в фоновом режиме'
 };
 
 export const HomePage = ({
@@ -16,7 +22,6 @@ export const HomePage = ({
     setIsConvertOpen,
     setIsIpsetModalOpen,
     setIsHostsModalOpen,
-    setIsResolverOpen,
     setIsProxyModalOpen
 }: any) => {
     const actionButtons = [
@@ -49,59 +54,20 @@ export const HomePage = ({
             variant: 'convert',
             icon: ICONS.convert,
             onClick: () => setIsConvertOpen(true)
-        },
-        {
-            title: 'Резолвер | Minecraft',
-            subtitle: 'Быстрое добавление серверов по буквенному айпи.',
-            variant: 'resolver',
-            icon: ICONS.resolver,
-            onClick: () => setIsResolverOpen(true)
         }
     ];
 
     return (
         <div className="content">
             <div className="strategy-header">
-                <span className="strat-label">STRATEGY</span>
+                <span className="strat-label">Стратегия</span>
                 <div className="strat-title-row">
                     <div className="strat-value">{stratName.replace('.zapret', '')}</div>
-                    <button className="select-strat-btn" onClick={() => setIsSelectorOpen(true)}>Сменить</button>
+                    <SelectButton onClick={() => setIsSelectorOpen(true)} front="Сменить" back="Стратегию" />
                 </div>
             </div>
+            <ActionButton STATUS={STATUS} handleToggle={handleToggle} status={status} />
 
-            <div className="hero-container">
-                <button
-                    className={`hero-reactor ${status}`}
-                    onClick={handleToggle}
-                    disabled={status === 'loading'}
-                >
-                    <div className="reactor-aura"></div>
-                    <div className="reactor-core">
-                        <div className="core-inner">
-                            <div className={`status-icon stopped ${status === 'stopped' ? 'visible' : ''}`}>
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                            </div>
-
-                            <div className={`status-icon loading ${status === 'loading' ? 'visible' : ''}`}>
-                                <div className="spinner-arc"></div>
-                            </div>
-
-                            <div className={`status-icon running ${status === 'running' ? 'visible' : ''}`}>
-                                <span className="sparkle-diamond">✦</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="reactor-ring"></div>
-                    <div className="reactor-ring ring-2"></div>
-                </button>
-            </div>
-
-            <div className={`status-indicator ${status}`}>
-                {status === 'stopped' && 'Выключен'}
-                {status === 'loading' && 'Загрузка...'}
-                {status === 'running' && 'Работает в фоновом режиме'}
-            </div>
             <div className="action-buttons">
                 {actionButtons.map((item, idx) => (
                     item.type === 'separator' ? (

@@ -14,10 +14,11 @@
     "windows": [
       {
         "title": "Zust",
+        "label": "main",
         "width": 600,
         "height": 600,
-        "minHeight": 500,
-        "minWidth": 400,
+        "minHeight": 700,
+        "minWidth": 600,
         "transparent": true,
         "decorations": false,
         "visible": false,
@@ -42,7 +43,8 @@
   "bundle": {
     "resources": [
       "./tor/**/*",
-      "./zapret/**/*"
+      "./zapret/**/*",
+      "./frp/**/*"
     ],
     "active": true,
     "targets": [

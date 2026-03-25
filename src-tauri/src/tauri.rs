@@ -1,11 +1,12 @@
 use crate::bypass::hosts::Hosts;
 use crate::bypass::proxies::{Proxies, Proxy};
-use crate::bypass::tor::Tor;
-use crate::bypass::zapret::Zapret;
+use crate::bypass::tor::{HotSpot, Tor};
+use crate::bypass::zapret::{ZExtensions, Zapret};
 use crate::settings::{self, Settings};
-use crate::utils::{self, AddType};
+use crate::utils::{self, AddType, FileTree};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::path::Path;
 use std::process::Command;
 use std::{fs, path::PathBuf};
 use tauri::{Manager, Runtime};
@@ -99,12 +100,35 @@ pub fn get_custom_configs(app: tauri::AppHandle) -> Vec<String> {
 
 #[tauri::command]
 pub fn read_file(app: tauri::AppHandle, name: String) -> Result<String, String> {
-    fs::read_to_string(Zapret::zapret_path(&app, "lists").join(name)).map_err(|e| e.to_string())
+    let path = std::path::Path::new(&name);
+    let final_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        Zapret::zapret_path(&app, "lists").join(name)
+    };
+
+    if !final_path.exists() {
+        return Err(format!("Файл не найден: {:?}", final_path));
+    }
+
+    fs::read_to_string(final_path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn save_file(app: tauri::AppHandle, name: String, content: String) -> Result<(), String> {
-    fs::write(Zapret::zapret_path(&app, "lists").join(name), content).map_err(|e| e.to_string())
+    let path = std::path::Path::new(&name);
+
+    let final_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        Zapret::zapret_path(&app, "lists").join(name)
+    };
+
+    if let Some(parent) = final_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    std::fs::write(final_path, content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -153,11 +177,6 @@ pub fn check_legacy_folder(app: tauri::AppHandle) -> bool {
     let res_dir = app.path().resource_dir().unwrap_or_default();
     let up_path = res_dir.join("_up_");
     up_path.exists() && up_path.is_dir()
-}
-
-#[tauri::command]
-pub async fn run_cleanup(app: tauri::AppHandle) -> Result<(), String> {
-    Zapret::handle_up_folder(&app, true)
 }
 
 #[tauri::command]
@@ -252,4 +271,72 @@ pub async fn restore_zapret_files<R: Runtime>(app: tauri::AppHandle<R>) -> Resul
 #[tauri::command]
 pub async fn check_tor_status(app: tauri::AppHandle) -> Result<bool, String> {
     Ok(Tor::check_existing_tor(app))
+}
+
+#[tauri::command]
+pub async fn manage_autostart(enabled: bool) -> Result<(), String> {
+    use winreg::RegKey;
+    use winreg::enums::*;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let path = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    let (key, _) = hkcu.create_subkey(path).map_err(|e| e.to_string())?;
+
+    if enabled {
+        let current_exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+
+        let command = format!("\"{}\" --autostart", current_exe);
+
+        key.set_value("zust", &command).map_err(|e| e.to_string())?;
+    } else {
+        let _ = key.delete_value("zust");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_file_tree(app: tauri::AppHandle) -> Vec<FileTree> {
+    utils::get_file_tree(app)
+}
+
+#[tauri::command]
+pub fn open_in_editor(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    if !p.exists() {
+        return Err("Файл не найден по указанному пути".into());
+    }
+    Command::new("cmd")
+        .args(["/C", "start", "", &path])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_installed_categories() -> Vec<String> {
+    Hosts::get_installed_categories()
+}
+
+#[tauri::command]
+pub async fn start_hotspot(app: tauri::AppHandle, port: Option<u16>) -> Result<u16, String> {
+    HotSpot::run(app, port)
+}
+
+#[tauri::command]
+pub async fn stop_hotspot() -> Result<(), String> {
+    HotSpot::stop()
+}
+
+#[tauri::command]
+pub fn get_hotspot_status() -> bool {
+    HotSpot::get_status()
+}
+
+#[tauri::command]
+pub async fn zapret_4_tor(app: tauri::AppHandle, strat_name: String) -> Result<(), String> {
+    ZExtensions::repair_zapret4tor(app, strat_name).await
 }

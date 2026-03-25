@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
 import { log } from '../Logic'
 import { notify } from '../Notifications'
+import { Header } from '@/Buttons';
 
 interface SettingItemProps {
     label: string;
@@ -13,10 +14,12 @@ interface SettingItemProps {
 
 interface ISettings {
     notifications: boolean;
+    autoStart: boolean;
     minimizeToTray: boolean;
     animationDisabled: boolean;
     gameFilter: boolean;
     refreshBridges: boolean;
+    autoTor: boolean;
     [key: string]: any;
 }
 
@@ -58,16 +61,23 @@ export const SettingsPage = () => {
 
         const newValue = !settings[key];
         const newSettings = { ...settings, [key]: newValue };
+
+        if (key === 'autoTor' && newValue === true) {
+            newSettings.autoStart = true;
+        }
+
         setSettings(newSettings);
 
         try {
             await invoke('save_settings', { settings: newSettings });
             window.dispatchEvent(new Event('settings-changed'));
-            switch (key) {
-                case 'animationDisabled':
-                    notify(newValue ? "Анимации выключены" : "Анимации включены", "success");
-                    break;
 
+            if (key === 'autoStart' || (key === 'autoTor' && newValue === true)) {
+                await invoke('manage_autostart', { enabled: newSettings.autoStart });
+                notify(newSettings.autoStart ? "Автозагрузка включена" : "Автозагрузка выключена");
+            }
+
+            switch (key) {
                 case 'gameFilter':
                     await invoke('game_filter_toggle', { enabled: newValue });
                     notify("Обновление конфигурации...");
@@ -91,6 +101,7 @@ export const SettingsPage = () => {
             }
         } catch (err) {
             notify("Ошибка сохранения", "error");
+            log("" + err);
             fetchData();
         }
     };
@@ -99,15 +110,16 @@ export const SettingsPage = () => {
 
     return (
         <div className="content">
-            <div className="strategy-header">
-                <span className="strat-label">CONFIGURATION</span>
-                <div className="strat-title-row">
-                    <span className="strat-value">Настройки Zust</span>
-                </div>
-            </div>
-
+            <Header title="Настройки" />
             <div className="credits-section">
                 <h2 className="section-title">Основные</h2>
+                <SettingItem
+                    label="Авто-запуск"
+                    description="Автоматический запуск при включении компьютера."
+                    emoji="🚀"
+                    enabled={settings.autoStart}
+                    onToggle={() => toggle('autoStart')}
+                />
                 <SettingItem
                     label="Уведомления"
                     description="Уведомлять о ошибках и успехах."
@@ -124,14 +136,6 @@ export const SettingsPage = () => {
                     enabled={settings.minimizeToTray}
                     onToggle={() => toggle('minimizeToTray')}
                 />
-                <SettingItem
-                    label="Отключение анимаций"
-                    description="Используйте если ZUST нагружает ваш компьютер интерфейсом."
-                    emoji="⚡"
-                    enabled={settings.animationDisabled}
-                    onToggle={() => toggle('animationDisabled')}
-                />
-
                 <h2 className="section-title" style={{ marginTop: '20px' }}>Zapret</h2>
                 <SettingItem
                     label="GameFilter"
@@ -140,13 +144,20 @@ export const SettingsPage = () => {
                     enabled={settings.gameFilter}
                     onToggle={() => toggle('gameFilter')}
                 />
-                <h2 className="section-title" style={{ marginTop: '20px' }}>VPN*</h2>
+                <h2 className="section-title" style={{ marginTop: '20px' }}>TOR</h2>
                 <SettingItem
                     label="Обновление мостов"
                     description='Поиск новых мостов для файла torrc при каждом новом подключении к сети TOR.'
                     emoji="🌉"
                     enabled={settings.refreshBridges}
                     onToggle={() => toggle('refreshBridges')}
+                />
+                <SettingItem
+                    label="Автоматическое включение"
+                    description="Автоматически запускать TOR при включении компьютера."
+                    emoji="🤖"
+                    enabled={settings.autoTor}
+                    onToggle={() => toggle('autoTor')}
                 />
             </div>
         </div>

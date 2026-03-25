@@ -28,6 +28,9 @@
     "shell:default",
     "core:app:allow-version",
     "core:window:allow-get-all-windows",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "process:allow-restart",
+    "core:window:allow-is-minimized",
+    "core:window:allow-is-visible"
   ]
 }

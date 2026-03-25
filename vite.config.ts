@@ -1,8 +1,10 @@
 // @ts-ignore
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from '@tailwindcss/vite'
 // @ts-ignore
-import dns from "node:dns";
+import dns from "dns";
+import path from "path";
 
 // @ts-ignore
 const host = process.env.TAURI_DEV_HOST;
@@ -10,7 +12,12 @@ const host = process.env.TAURI_DEV_HOST;
 dns.setDefaultResultOrder("verbatim");
 
 export default defineConfig(async () => ({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   clearScreen: false,
   server: {
     port: 1420,

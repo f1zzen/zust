@@ -64,3 +64,4 @@ roblox-api.arkoselabs.co
 roblox.com
 robloxlabs.com
 modrinth.com
+torproject.org

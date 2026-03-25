@@ -8,104 +8,25 @@ import { StrategyModal } from "./modals/StrategyModal"
 import { IpsetModal } from "./modals/IpsetModal"
 import { ConvertModal } from "./modals/ConvertModal"
 import { HostsModal } from "./modals/HostsModal"
-import { LegacyModal } from "./modals/LegacyModal";
 import { Logic } from "./Logic";
-import { ResolverModal } from "./modals/ResolverModal";
 import { ProxyModal } from "./modals/ProxyModal";
 import { NewsModal } from "./modals/NewsModal";
-import { memo, useEffect, useRef, useState } from "react";
-import Particles from "@tsparticles/react";
+import { useEffect, useRef, useState } from "react";
 import { ProxyPage } from "./pages/Proxy";
 import { DeepLinkModal } from "./modals/DeepLinkModal";
+import { StarsBackground } from "./components/animate-ui/components/backgrounds/stars";
+import { cn } from "./lib/utils";
+import { Dock, DockIcon } from "./components/ui/dock";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
+import { Separator } from "./components/ui/separator";
+import { motion } from "motion/react";
+import { HotspotModal } from "./modals/HotSpotModal";
+import { SponsorsModal } from "./modals/SponsorsModal";
+import { CommunityModal } from "./modals/CommunityModal";
+import { FreezeProvider } from "./Freeze";
+import { RepairZapret4TorModal } from "./modals/RepairZapret4Tor";
 
-const STRASHILKI_BUGAGA = 11;
-
-const particlesOptions: any = {
-  fpsLimit: 120,
-  background: { color: "transparent" },
-  particles: {
-    number: {
-      value: 100,
-      limit: 150,
-      density: { enable: true, area: 800 }
-    },
-    color: {
-      value: ["#a855f7", "#6366f1", "#ffffff"],
-    },
-    shape: {
-      type: "circle",
-    },
-    opacity: {
-      value: { min: 0.1, max: 0.5 },
-      animation: { enable: true, speed: 1, sync: false }
-    },
-    size: {
-      value: { min: 1, max: 3 },
-      animation: { enable: true, speed: 2, sync: false }
-    },
-    links: {
-      enable: true,
-      distance: 120,
-      color: "#6366f1",
-      opacity: 0.2,
-      width: 1,
-      consent: false,
-      revealOffset: 10
-    },
-    move: {
-      enable: true,
-      speed: { min: 0.1, max: 0.8 },
-      direction: "none",
-      random: true,
-      straight: false,
-      outModes: { default: "out" },
-      attract: {
-        enable: true,
-        rotateX: 2000,
-        rotateY: 2000
-      }
-    }
-  },
-  interactivity: {
-    events: {
-      onHover: {
-        enable: true,
-        mode: ["bubble", "connect"],
-        parallax: { enable: true, force: 100, smooth: 15 }
-      },
-      onClick: { enable: true, mode: "repulse" }
-    },
-    modes: {
-      bubble: {
-        distance: 200,
-        size: 6,
-        duration: 0.3,
-        opacity: 0.8,
-        color: "#ffffff"
-      },
-      connect: {
-        distance: 150,
-        links: { opacity: 0.4 },
-        radius: 150
-      },
-      repulse: {
-        distance: 250,
-        duration: 0.4
-      }
-    }
-  },
-  detectRetina: true
-};
-
-const ParticlesBackground = memo(() => {
-  return (
-    <Particles
-      id="particles"
-      key="constant-particles-root"
-      options={particlesOptions}
-    />
-  );
-});
+const STRASHILKI_BUGAGA = 12;
 
 const PAGE_INDEX: Record<string, number> = { home: 0, settings: 1, proxy: 2, editor: 3, credits: 4 };
 
@@ -136,23 +57,78 @@ const NAV_ICONS = {
   }
 };
 
-const NavItem = ({ id, isActive, onClick, onHover }: any) => {
+const NavItem = (props: any) => {
+  const { id, isActive, onClick, ...dockProps } = props;
   const icon = NAV_ICONS[id as keyof typeof NAV_ICONS];
+
   return (
-    <button className={`nav-item ${isActive ? 'active' : ''}`} onClick={onClick} onMouseEnter={() => onHover(icon.label)} onMouseLeave={() => onHover(null)}>
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{icon.path}</svg>
-    </button>
+    <DockIcon {...dockProps}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onClick}
+            className={cn(
+              "nav-item relative flex h-full w-full items-center justify-center rounded-full outline-none",
+              isActive && "active"
+            )}
+          >
+            <motion.div
+              animate={isActive ? {
+                y: [0, -12, 0],
+                scale: [1, 1.3, 1.15],
+                rotate: [0, 15, -10, 0],
+              } : {
+                y: 0,
+                scale: 1,
+                rotate: 0,
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 400,
+                damping: 10,
+                duration: 0.5
+              }}
+              whileTap={{ scale: 0.9, y: 2 }}
+              className="flex items-center justify-center"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="icon-svg pointer-events-none"
+              >
+                {icon.path}
+              </svg>
+            </motion.div>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="border-white/10 bg-black/80 text-white backdrop-blur-md">
+          <p>{icon.label}</p>
+        </TooltipContent>
+      </Tooltip>
+    </DockIcon>
   );
 };
 
 function App() {
   const { state, prefs, actions } = Logic();
+  useEffect(() => {
+    (window as any).testNewsModal = () => {
+      localStorage.removeItem("last_seen_news_id");
+      prefs.setIsNewsModalOpen(true);
+    };
+  }, [prefs]);
   const { zapret } = state;
 
   const [bugagaConfig, setBugagaConfig] = useState<{ path: string, id: number } | null>(null);
   const jumpscareTimer = useRef<NodeJS.Timeout | null>(null);
   const lastClickTime = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [renderedPages, setRenderedPages] = useState<string[]>([state.activePage]);
 
   const creditsClickCount = useRef(0);
 
@@ -161,6 +137,12 @@ function App() {
       if (jumpscareTimer.current) clearTimeout(jumpscareTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!renderedPages.includes(state.activePage)) {
+      setRenderedPages((prev) => [...prev, state.activePage]);
+    }
+  }, [state.activePage]);
 
   const handleNavClick = (id: string) => {
     const currentTime = Date.now();
@@ -202,92 +184,107 @@ function App() {
     prefs.setActivePage(id);
   };
 
+  const renderPage = (pageId: string) => {
+    if (!renderedPages.includes(pageId)) return null;
+
+    switch (pageId) {
+      case 'home': return <HomePage
+        {...zapret}
+        onSelectConfig={actions.handleStrategyChange}
+        isSelectorOpen={state.isSelectorOpen}
+        setIsSelectorOpen={prefs.setIsSelectorOpen}
+        loadConfigs={actions.loadIpsetConfigs}
+        setIsConvertOpen={prefs.setIsConvertOpen}
+        setIsIpsetModalOpen={prefs.setIsIpsetModalOpen}
+        setIsHostsModalOpen={prefs.setIsHostsModalOpen}
+        setIsProxyModalOpen={prefs.setIsProxyModalOpen}
+        setIsNewsModalOpen={prefs.setIsNewsModalOpen}
+        handleToggle={() => zapret.status === 'stopped' ? zapret.startProcess() : zapret.stopProcess()}
+      />;
+      case 'settings': return <SettingsPage />;
+      case 'proxy': return <ProxyPage
+        isHotspotActive={state.isHotspotActive}
+        setIsHotspotActive={(val: boolean) => prefs.setIsHotspotActive(val)}
+        setIsHotspotOpen={() => prefs.setIsHotspotOpen(true)}
+        activeHotspotPort={state.activeHotspotPort}
+      />;
+      case 'editor': return <EditorPage />;
+      case 'credits': return <ExtraPage {...zapret} torLogs={state.torLogs} logs={state.logs} logStart={state.logStart} prefs={prefs} />;
+      default: return null;
+    }
+  };
+
   return (
-    <div className="main-container">
-      <ParticlesBackground />
-      <header className="titlebar" data-tauri-drag-region>
-        <div className="app-identity" data-tauri-drag-region>
-          <span className="star-icon">✦</span>
-          <span className="app-name">Zust</span>
-        </div>
-        <div className="window-controls">
-          <button className={`win-btn pin ${state.isPinned ? 'active' : ''}`} onClick={actions.togglePin} title="Always on top">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg>
-          </button>
-          <button className="win-btn" onClick={() => getCurrentWindow().minimize()}>−</button>
-          <button className="win-btn" onClick={() => getCurrentWindow().toggleMaximize()}>☐</button>
-          <button className="win-btn close" onClick={() => getCurrentWindow().close()}>×</button>
-        </div>
-      </header>
-      <NotificationProvider>
-        <main className="scroll-area">
-          <div className="pages-slider" style={{ transform: `translateX(-${PAGE_INDEX[state.activePage] * 20}%)` }}>
-            <div className={`page ${state.activePage === 'home' ? 'active' : ''}`}>
-              <HomePage
-                {...zapret}
-                onSelectConfig={actions.handleStrategyChange}
-                isSelectorOpen={state.isSelectorOpen}
-                setIsSelectorOpen={prefs.setIsSelectorOpen}
-                loadConfigs={actions.loadIpsetConfigs}
-                setIsConvertOpen={prefs.setIsConvertOpen}
-                setIsIpsetModalOpen={prefs.setIsIpsetModalOpen}
-                setIsHostsModalOpen={prefs.setIsHostsModalOpen}
-                setIsResolverOpen={prefs.setIsResolverOpen}
-                setIsProxyModalOpen={prefs.setIsProxyModalOpen}
-                setIsNewsModalOpen={prefs.setIsNewsModalOpen}
-                handleToggle={() => zapret.status === 'stopped' ? zapret.startProcess() : zapret.stopProcess()}
+    <FreezeProvider>
+      <div className="relative w-full h-screen bg-[#05010a] overflow-hidden">
+        <StarsBackground speed={20} className={cn(
+          'absolute inset-0 flex items-center justify-center rounded-xl brightness-50',
+          'bg-[radial-gradient(ellipse_at_bottom,#180a30_0%,#000_100%)]'
+        )} />
+        <header className="titlebar" style={{ userSelect: 'none' }} data-tauri-drag-region>
+          <div className="app-identity" data-tauri-drag-region>
+            <span className="star-icon">✦</span>
+            <span className="app-name">Zust</span>
+          </div>
+          <div className="window-controls">
+            <button className={`win-btn pin ${state.isPinned ? 'active' : ''}`} onClick={actions.togglePin} title="Always on top">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg>
+            </button>
+            <button className="win-btn" onClick={() => getCurrentWindow().minimize()}>−</button>
+            <button className="win-btn" onClick={() => getCurrentWindow().toggleMaximize()}>☐</button>
+            <button className="win-btn close" onClick={() => getCurrentWindow().close()}>×</button>
+          </div>
+        </header>
+        <NotificationProvider>
+          <main className="scroll-area">
+            <div className="pages-slider" style={{ transform: `translateX(-${PAGE_INDEX[state.activePage] * 20}%)` }}>
+              {Object.keys(PAGE_INDEX).map((pageId) => (
+                <div key={pageId} className={`page ${state.activePage === pageId ? 'active' : ''}`}>
+                  {renderPage(pageId)}
+                </div>
+              ))}
+            </div>
+          </main>
+        </NotificationProvider>
+        {bugagaConfig && (
+          <div
+            key={bugagaConfig.id}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              zIndex: 999999,
+              pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent'
+            }}
+          >
+            <div className="jpeg-ruin" style={{
+              width: '100%',
+              height: '100%',
+              background: 'transparent'
+            }}>
+              <img
+                src={bugagaConfig.path}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'fill',
+                  animation: 'jumpscare-simple 5s ease-out forwards',
+                  display: 'block',
+                  background: 'transparent'
+                }}
               />
             </div>
-
-            <div className={`page ${state.activePage === 'settings' ? 'active' : ''}`}><SettingsPage /></div>
-            <div className={`page ${state.activePage === 'proxy' ? 'active' : ''}`}><ProxyPage /></div>
-            <div className={`page ${state.activePage === 'editor' ? 'active' : ''}`}><EditorPage /></div>
-            <div className={`page ${state.activePage === 'credits' ? 'active' : ''}`}><ExtraPage
-              {...zapret}
-              logs={state.logs}
-              logStart={state.logStart} /></div>
           </div>
-        </main>
-      </NotificationProvider>
-      {bugagaConfig && (
-        <div
-          key={bugagaConfig.id}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            zIndex: 999999,
-            pointerEvents: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent'
-          }}
-        >
-          <div className="jpeg-ruin" style={{
-            width: '100%',
-            height: '100%',
-            background: 'transparent'
-          }}>
-            <img
-              src={bugagaConfig.path}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'fill',
-                animation: 'jumpscare-simple 5s ease-out forwards',
-                display: 'block',
-                background: 'transparent'
-              }}
-            />
-          </div>
-        </div>
-      )}
+        )}
 
-      <style>
-        {`
+        <style>
+          {`
   @keyframes jumpscare-simple {
     0% { opacity: 1; }
     15% { opacity: 1; }
@@ -310,50 +307,84 @@ function App() {
     mask-image: linear-gradient(#000, #000);
   }
   `}
-      </style>
+        </style>
 
-      <footer className="bottom-nav">
-        {Object.keys(NAV_ICONS).map((id) => (
-          <NavItem key={id} id={id} isActive={state.activePage === id} onClick={() => handleNavClick(id)} onHover={prefs.setHoverText} />
-        ))}
-        <div className={`nav-tooltip ${state.hoverText ? 'visible' : ''}`}>{state.hoverText || state.lastText}</div>
-      </footer>
-      <StrategyModal isOpen={state.isSelectorOpen} onClose={() => prefs.setIsSelectorOpen(false)} configs={zapret.configs} stratName={zapret.stratName} onSelect={actions.handleStrategyChange} updatableStrats={state.updatableStrats} setUpdatableStrats={prefs.setUpdatableStrats} />
-      <ConvertModal isOpen={state.isConvertOpen} onClose={() => prefs.setIsConvertOpen(false)} onPick={actions.handlePickFiles} />
-      <IpsetModal
-        isOpen={state.isIpsetModalOpen}
-        onClose={() => { prefs.setIsIpsetModalOpen(false); prefs.setIpsetView('main'); }}
-        selectedIpset={zapret.selectedIpset}
-        ipsetView={state.ipsetView}
-        setIpsetView={prefs.setIpsetView}
-        customIpsetFiles={state.customIpsetFiles}
-        onModeChange={actions.changeIpsetMode}
-        loadCustom={actions.loadIpsetConfigs}
-        hoveredDesc={state.hoveredDesc}
-        setHoveredDesc={prefs.setHoveredDesc}
-      />
-      <DeepLinkModal
-        isOpen={state.isDeepLinkModalOpen}
-        onClose={() => prefs.setIsDeepLinkModalOpen(false)}
-        state={state}
-        data={state.deepLinkData}
-      />
-      <HostsModal isOpen={state.isHostsModalOpen} onClose={() => prefs.setIsHostsModalOpen(false)} />
-      <LegacyModal isOpen={state.isLegacyOpen} />
-      <ResolverModal
-        isOpen={state.isResolverOpen}
-        onClose={() => prefs.setIsResolverOpen(false)}
-        selectedIpset={zapret.selectedIpset}
-        onAdd={actions.addIp}
-      />
-      <ProxyModal isOpen={state.isProxyModalOpen} onClose={() => prefs.setIsProxyModalOpen(false)} />
-      {state.isNewsModalOpen && state.isUpdateChecked && (
+        <footer className="bottom-nav">
+          <TooltipProvider>
+            <Dock
+              direction="middle"
+              iconSize={50}
+              iconMagnification={80}
+              iconDistance={60}
+              className="bg-transparent border-white/10 border p-2 rounded-2xl"
+            >
+              <NavItem
+                id="home"
+                isActive={state.activePage === 'home'}
+                onClick={() => handleNavClick('home')}
+              />
+              <Separator orientation="vertical" className="h-8 bg-white/10 mx-2" />
+              {['settings', 'proxy', 'editor'].map((id) => (
+                <NavItem
+                  key={id}
+                  id={id}
+                  isActive={state.activePage === id}
+                  onClick={() => handleNavClick(id)}
+                />
+              ))}
+
+              <Separator orientation="vertical" className="h-8 bg-white/10 mx-2" />
+
+              <NavItem
+                id="credits"
+                isActive={state.activePage === 'credits'}
+                onClick={() => handleNavClick('credits')}
+              />
+            </Dock>
+          </TooltipProvider>
+        </footer>
+        <StrategyModal isOpen={state.isSelectorOpen} onClose={() => prefs.setIsSelectorOpen(false)} configs={zapret.configs} stratName={zapret.stratName} onSelect={actions.handleStrategyChange} updatableStrats={state.updatableStrats} setUpdatableStrats={prefs.setUpdatableStrats} />
+        <ConvertModal isOpen={state.isConvertOpen} onClose={() => prefs.setIsConvertOpen(false)} onPick={actions.handlePickFiles} />
+        <IpsetModal
+          isOpen={state.isIpsetModalOpen}
+          onClose={() => { prefs.setIsIpsetModalOpen(false); prefs.setIpsetView('main'); }}
+          selectedIpset={zapret.selectedIpset}
+          ipsetView={state.ipsetView}
+          setIpsetView={prefs.setIpsetView}
+          customIpsetFiles={state.customIpsetFiles}
+          onModeChange={actions.changeIpsetMode}
+          loadCustom={actions.loadIpsetConfigs}
+          hoveredDesc={state.hoveredDesc}
+          setHoveredDesc={prefs.setHoveredDesc}
+        />
+        <DeepLinkModal
+          isOpen={state.isDeepLinkModalOpen}
+          onClose={() => prefs.setIsDeepLinkModalOpen(false)}
+          state={state}
+          data={state.deepLinkData}
+        />
+        <HostsModal isOpen={state.isHostsModalOpen} onClose={() => prefs.setIsHostsModalOpen(false)} />
+        <ProxyModal isOpen={state.isProxyModalOpen} onClose={() => prefs.setIsProxyModalOpen(false)} />
+        <HotspotModal
+          isOpen={state.isHotspotOpen}
+          onClose={() => prefs.setIsHotspotOpen(false)}
+          onLaunched={actions.handleHotspotLaunched}
+        />
         <NewsModal
           updateAvailable={state.updateAvailable}
           onClose={() => prefs.setIsNewsModalOpen(false)}
+          isOpen={state.isNewsModalOpen} />
+        <SponsorsModal
+          isOpen={state.isSponsorsModalOpen}
+          onClose={() => prefs.setIsSponsorsModalOpen(false)}
         />
-      )}
-    </div>
+        <CommunityModal
+          isOpen={state.isCommunityModalOpen}
+          onClose={() => prefs.setIsCommunityModalOpen(false)}
+        />
+        <RepairZapret4TorModal stratName={zapret.selectedConfig} />
+      </div>
+    </FreezeProvider>
   );
 }
 

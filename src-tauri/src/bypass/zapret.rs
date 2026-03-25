@@ -11,11 +11,13 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::AppHandle;
+use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
 use winreg::RegKey;
 use winreg::enums::*;
 
+const STUN_BIN_DATA: &[u8] = include_bytes!("../../zapret/bin/stun.bin");
 const WINWS_EXE: &str =
     "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/winws.exe";
 const MAX_RU_BIN: &str = "https://github.com/Flowseal/zapret-discord-youtube/raw/refs/heads/main/bin/tls_clienthello_max_ru.bin";
@@ -46,77 +48,100 @@ const REPO_STRAT_NAMES: &[&str] = &[
 ];
 
 pub struct Zapret;
+pub struct ZExtensions;
+
+impl ZExtensions {
+    // набор "расширений" для будущей работы с застом. может быть здесь будет больше функционала..
+    pub async fn repair_zapret4tor(app: AppHandle, strat_name: String) -> Result<(), String> {
+        let list_path = Zapret::zapret_path(&app, "lists").join("list-general.txt");
+        let domain = "torproject.org";
+        if !Zapret::check_domain_in_list(&app, "list-general.txt", domain) {
+            app.emit(
+                "log-event",
+                format!("[SYSTEM] Добавление {} в список...", domain),
+            )
+            .ok();
+
+            let mut content = std::fs::read_to_string(&list_path).unwrap_or_default();
+            if !content.is_empty() && !content.ends_with('\n') {
+                content.push('\n');
+            }
+            content.push_str(domain);
+            content.push('\n');
+
+            std::fs::write(&list_path, content).map_err(|e| e.to_string())?;
+        }
+        let all_strategies = Zapret::get_list_strategies(&app);
+        let strat_index = all_strategies
+            .iter()
+            .position(|s| s == &strat_name || s.replace(".zapret", "") == strat_name)
+            .map(|pos| (pos + 1) as i32)
+            .unwrap_or(1);
+
+        let current_ipset = Zapret::get_ipset_config();
+        Zapret::start_service(&app, strat_index, Some(current_ipset));
+        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+
+        if Zapret::get_status() {
+            Ok(())
+        } else {
+            Err("Не удалось запустить службу обхода".into())
+        }
+    }
+}
 
 impl Zapret {
-    // удаление старой папки _up_
-    // для людей, которые хотят перейти на новую версию
-    pub fn handle_up_folder(app: &AppHandle, force: bool) -> Result<(), String> {
-        let res_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
-        let up_path = res_dir.join("_up_");
-
-        if up_path.exists() {
-            info(app, "detect legacy folder, moving");
-            let current_strat_name = Self::get_strategy();
-            let strat_list = Self::get_list_strategies(app);
-            let strat_index = strat_list.iter().position(|s| s == &current_strat_name);
-            Self::stop_service(app);
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            if force {
-                info(app, "moving strategies from legacy folder ");
-                let old_str_path = up_path.join("zapret").join("strategies");
-                let active_str_path = Self::zapret_path(app, "strategies");
-
-                if old_str_path.exists() {
-                    if let Ok(entries) = fs::read_dir(&old_str_path) {
-                        for entry in entries.filter_map(|e| e.ok()) {
-                            let path = entry.path();
-                            if path.is_file() {
-                                let file_name = path.file_name().unwrap();
-                                let dest_path = active_str_path.join(file_name);
-                                if !dest_path.exists() {
-                                    let _ = fs::copy(&path, &dest_path);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let Err(e) = fs::remove_dir_all(&up_path) {
-                let err_msg = format!("error on deleting _up_ folder: {}", e);
-                info(app, &err_msg);
-                return Err(err_msg);
-            }
-
-            info(app, "folder _up_ deleted");
-            if current_strat_name != "Отсутствует" {
-                if let Some(idx) = strat_index {
-                    info(app, &format!("strategy {} restart", current_strat_name));
-                    Self::start_service(app, (idx + 1) as i32, None);
-                }
-            }
-        }
-        Ok(())
+    pub fn get_ipset_config() -> String {
+        RegKey::predef(HKEY_LOCAL_MACHINE)
+            .open_subkey(HKLM_PATH)
+            .and_then(|k| k.get_value("zapret-ipset-config"))
+            .unwrap_or_else(|_| "ipset-all.txt".to_string())
     }
 
     pub async fn update_tls_bin(app: AppHandle) -> Result<String, String> {
         let target_path = Zapret::zapret_path(&app, "bin").join("tls_clienthello_max_ru.bin");
         let response = reqwest::get(MAX_RU_BIN)
             .await
-            .map_err(|e| format!("ошибка запроса: {}", e))?;
+            .map_err(|e| format!("Ошибка запроса! Хорош-ли твой интернет?: {}", e))?;
 
         if response.status().is_success() {
             let bytes = response
                 .bytes()
                 .await
-                .map_err(|e| format!("ошибка чтения данных: {}", e))?;
+                .map_err(|e| format!("Неизвестная ошибка данных.. Всё нормально?: {}", e))?;
 
-            fs::write(&target_path, bytes).map_err(|e| format!("ошибка записи файла: {}", e))?;
+            fs::write(&target_path, bytes)
+                .map_err(|e| format!("Неизвестная ошибка при записи файла. Всё хорошо?: {}", e))?;
 
-            Ok("файл успешно обновлен".to_string())
+            Ok("Файл успешно обновлён!".to_string())
         } else {
-            Err(format!("сервер вернул ошибку: {}", response.status()))
+            Err(format!("Сервер вернул ошибку: {}", response.status()))
         }
+    }
+
+    pub fn get_status() -> bool {
+        let output = Command::new("tasklist")
+            .args(["/NH", "/FI", "IMAGENAME eq winws.exe"])
+            .creation_flags(0x08000000)
+            .output();
+
+        if let Ok(out) = output {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            return stdout.contains("winws.exe");
+        }
+        false
+    }
+
+    pub fn check_domain_in_list(app: &AppHandle, list_name: &str, domain: &str) -> bool {
+        let list_path = Self::zapret_path(app, "lists").join(list_name);
+        if !list_path.exists() {
+            return false;
+        }
+
+        if let Ok(content) = fs::read_to_string(list_path) {
+            return content.lines().any(|line| line.trim() == domain);
+        }
+        false
     }
 
     // проверка обновлений winws
@@ -134,10 +159,13 @@ impl Zapret {
         let remote_hash = format!("{:x}", Md5::digest(&bytes));
         info(
             &app,
-            &format!("hash diff {:?} n {:?}", remote_hash, local_hash),
+            &format!(
+                "Сравнение хэшов программ: {:?}.НОВ n {:?}.ТЕК",
+                remote_hash, local_hash
+            ),
         );
         if local_hash != remote_hash {
-            info(&app, "new winws.exe, download");
+            info(&app, "Обнаружен новый бинарник запрета, скачиваю");
             fs::write(&bin_path, &bytes).map_err(|e| e.to_string())?;
             return Ok(true);
         }
@@ -265,7 +293,10 @@ impl Zapret {
             let _ = fs::remove_file(bat_path);
             Ok(())
         } else {
-            Err(format!("err response from github {}", res.status()))
+            Err(format!(
+                "При подключении к github.com произошла ошибка {}",
+                res.status()
+            ))
         }
     }
 
@@ -338,19 +369,43 @@ impl Zapret {
         path.join(sub)
     }
 
-    pub fn sync_zapret_files(app: &AppHandle) -> Result<(), String> {
-        let target_dir = Self::zapret_path(app, "");
-        let bin_path = target_dir.join("bin").join("winws.exe");
-        let strat_dir = target_dir.join("strategies");
-        let essential_files = ["ipset-all.txt", "ipset-any-hide.txt", "ipset-none-hide.txt"];
-        let lists_dir = target_dir.join("lists");
-
-        let mut needs_sync = false;
-        if !bin_path.exists() {
-            needs_sync = true;
+    fn add_only_missing_files(app: &AppHandle, src: &Path, dst: &Path) -> std::io::Result<()> {
+        if !src.exists() {
+            return Ok(());
         }
 
-        if !needs_sync {
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
+            let name = entry.file_name();
+            let src_path = entry.path();
+            let dst_path = dst.join(&name);
+
+            if file_type.is_dir() {
+                if !dst_path.exists() {
+                    fs::create_dir_all(&dst_path)?;
+                }
+                Self::add_only_missing_files(app, &src_path, &dst_path)?;
+            } else {
+                if !dst_path.exists() {
+                    info(app, &format!("Добавление нового компонента: {:?}", name));
+                    fs::copy(&src_path, &dst_path)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn sync_zapret_files(app: &AppHandle) -> Result<(), String> {
+        let source_root = Self::zapret_storage(app, "");
+        let target_root = Self::zapret_path(app, "");
+
+        let bin_path = target_root.join("bin").join("winws.exe");
+        let strat_dir = target_root.join("strategies");
+
+        let mut needs_initial_sync = !bin_path.exists();
+
+        if !needs_initial_sync {
             let has_strategies = fs::read_dir(&strat_dir)
                 .map(|entries| {
                     entries
@@ -358,30 +413,18 @@ impl Zapret {
                         .any(|e| e.path().extension().map_or(false, |ext| ext == "zapret"))
                 })
                 .unwrap_or(false);
-
             if !has_strategies {
-                needs_sync = true;
+                needs_initial_sync = true;
             }
         }
-        if !needs_sync {
-            for filename in &essential_files {
-                if !lists_dir.join(filename).exists() {
-                    needs_sync = true;
-                    break;
-                }
+        if needs_initial_sync {
+            info(app, "Первичная настройка ресурсов ZAPRET...");
+            Self::copy_dir_all(&source_root, &target_root).map_err(|e| e.to_string())?;
+        } else {
+            if let Err(e) = Self::add_only_missing_files(app, &source_root, &target_root) {
+                info(app, &format!("Предупреждение при синхронизации: {}", e));
             }
         }
-
-        if !needs_sync {
-            return Ok(());
-        }
-
-        info(app, "Обнаружен критический момент в сборке. Исправляю..");
-
-        let source = Self::zapret_storage(app, "");
-        let target = Self::zapret_path(app, "");
-
-        Self::copy_dir_all(&source, &target).map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -416,6 +459,20 @@ impl Zapret {
             .open_subkey(HKLM_PATH)
             .and_then(|k| k.get_value("zapret-discord-youtube"))
             .unwrap_or_else(|_| "Отсутствует".to_string())
+    }
+
+    pub fn bin_files_exist(app: &AppHandle) -> Result<(), String> {
+        let bin_dir = Self::zapret_path(app, "bin");
+        if !bin_dir.exists() {
+            fs::create_dir_all(&bin_dir).map_err(|e| e.to_string())?;
+        }
+        let stun_path = bin_dir.join("stun.bin");
+        if !stun_path.exists() {
+            fs::write(&stun_path, STUN_BIN_DATA).map_err(|e| format!("stun.bin: {}", e))?;
+            info(app, "Файл stun.bin был успешно восстановлен.");
+        }
+
+        Ok(())
     }
 
     pub fn get_files_lists(app: &AppHandle) -> Vec<String> {
@@ -465,12 +522,8 @@ impl Zapret {
         info(
             app,
             &format!(
-                "Проверка фильтра: {}",
-                if game_filter_enabled {
-                    "Игровой"
-                } else {
-                    "Обычный"
-                }
+                "gameFilter: {}",
+                if game_filter_enabled { "on" } else { "off" }
             ),
         );
         let filter = if game_filter_enabled {
@@ -479,10 +532,23 @@ impl Zapret {
             "12"
         };
 
-        let mut args = raw.replace("%GameFilter%", filter).replace(
-            "%BIN%",
-            &format!("{}\\", Self::zapret_path(app, "bin").display()),
-        );
+        let mut args = raw
+            .replace("%GameFilter%", filter)
+            .replace(
+                "%BIN%",
+                &format!("{}\\", Self::zapret_path(app, "bin").display()),
+            )
+            .replace("%GameFilterTCP%", filter)
+            .replace("%GameFilterUDP%", filter)
+            .replace("-user", "");
+
+        args = args.replace("^", "");
+        args = args
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
 
         let ipset_path = match custom_ipset.as_deref() {
             Some("none") => lists_dir.join("ipset-none-hide.txt"),
@@ -516,23 +582,25 @@ impl Zapret {
                 .collect();
             args.push_str(&hosts);
         }
-        args.trim().to_string()
+
+        args = args.trim().to_string();
+
+        info(&app, &args);
+        args
     }
 
     pub fn start_service(app: &AppHandle, index: i32, ipset_config: Option<String>) {
         Self::stop_service(app);
+        let _ = Self::bin_files_exist(app);
         let list = Self::get_list_strategies(app);
         let name = match list.get((index - 1).max(0) as usize) {
             Some(n) => n,
-            None => {
-                info(app, "Ошибка: Стратегия не найдена.");
-                return;
-            }
+            None => return,
         };
 
         let strategy_raw =
             fs::read_to_string(Self::zapret_path(app, "strategies").join(name)).unwrap_or_default();
-        let final_args = Self::build_full_args(app, strategy_raw.trim(), ipset_config);
+        let final_args = Self::build_full_args(app, strategy_raw.trim(), ipset_config.clone());
         let bin = Self::zapret_path(app, "bin/winws.exe");
 
         let _ = sh!(
@@ -544,20 +612,31 @@ impl Zapret {
             "timestamps=enabled"
         );
 
-        let cmd = format!(
-            "New-Service -Name 'zapret' -BinaryPathName '\"{}\" {}' -DisplayName 'zapret' -StartupType Automatic",
+        let log_path = Self::zapret_path(app, "latest.log");
+        let binary_path = format!(
+            "cmd.exe /c \"\"{}\" {} > \"{}\" 2>&1\"",
             bin.display(),
-            final_args
+            final_args,
+            log_path.display()
+        );
+
+        let cmd = format!(
+            "New-Service -Name 'zapret' -BinaryPathName '{}' -DisplayName 'zapret' -StartupType Automatic",
+            binary_path
         );
 
         if let Ok(s) = sh!("powershell", "-NoProfile", "-Command", &cmd) {
-            let s: std::process::ExitStatus = s;
             if s.success() {
                 let _ = sh!("sc", "start", "zapret");
                 let _ = RegKey::predef(HKEY_LOCAL_MACHINE)
                     .create_subkey(HKLM_PATH)
-                    .map(|(k, _)| k.set_value("zapret-discord-youtube", name));
-                info(app, &format!("запущено: {}", name));
+                    .map(|(k, _)| {
+                        let _ = k.set_value("zapret-discord-youtube", name);
+                        let _ = k.set_value(
+                            "zapret-ipset-config",
+                            &ipset_config.unwrap_or_else(|| "ipset-all.txt".to_string()),
+                        );
+                    });
             }
         }
     }

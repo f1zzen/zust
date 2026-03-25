@@ -30,21 +30,27 @@ impl Hosts {
         let malw = match reqwest::get(MALW_URL).await {
             Ok(res) => res.text().await.ok(),
             Err(e) => {
-                info(app, &format!("ERR_MALWARE_HOSTS_FETCH: {}", e));
+                info(
+                    app,
+                    &format!("Не удалось получить хосты от MALW, подробнее: {}", e),
+                );
                 None
             }
         };
         let flow = match reqwest::get(FLOWSEAL_URL).await {
             Ok(res) => res.text().await.ok(),
             Err(e) => {
-                info(app, &format!("ERR_FLOWSEAL_HOSTS_FETCH: {}", e));
+                info(
+                    app,
+                    &format!("Не удалось получить хосты от FLOWSEAL, подробнее: {}", e),
+                );
                 None
             }
         };
 
         let mut combined = String::new();
         if let Some(m) = malw {
-            info(app, "MALWARE_HOSTS_QUEQE ADDED");
+            info(app, "Списки от MALW получены, и отправлены на обработку.");
             combined.push_str(&format!(
                 "{}\n{}\n{}\n",
                 Self::MALW_START,
@@ -54,7 +60,10 @@ impl Hosts {
         }
 
         if let Some(f) = flow {
-            info(app, "FLOWSEAL_HOSTS_QUEQE ADDED");
+            info(
+                app,
+                "Списки от FLOWSEAL получены, и отправлены на обработку.",
+            );
             combined.push_str(&format!(
                 "{}\n# Discord & Telegram\n{}\n{}\n",
                 Self::FLOW_START,
@@ -64,7 +73,7 @@ impl Hosts {
         }
 
         if combined.is_empty() {
-            return Err("NO_ONE_ADDED ERR".to_string());
+            return Err("По неизвестной нам с тобой причине, список пуст. Убедитесь, что ничего лишнего не нажимали и попробуйте снова.".to_string());
         }
 
         Ok(combined)
@@ -82,7 +91,10 @@ impl Hosts {
 
         info(
             app,
-            &format!("CONFLICT CHECKED -> {} IP-адресов", new_ips.len()),
+            &format!(
+                "В процессе чистки лишних IP-адресов, были найдены как минмум {}.",
+                new_ips.len()
+            ),
         );
 
         let re_malw = Regex::new(&format!(
@@ -118,7 +130,10 @@ impl Hosts {
         let path = Self::get_path();
         let current_content = fs::read_to_string(&path).unwrap_or_default();
 
-        info(app, "Очистка hosts от старых записей и дубликатов IP...");
+        info(
+            app,
+            "Очистка hosts-файла от старых записей, дубликатов и подобного..",
+        );
         let base_content = Self::clean(app, &current_content, new_data);
 
         let final_content = format!("{}\n\n{}", new_data.trim(), base_content);
@@ -130,7 +145,10 @@ impl Hosts {
                 Ok(())
             }
             Err(e) => {
-                let err_msg = format!("Неизвестная ошибка записи: {}", e);
+                let err_msg = format!(
+                    "Неизвестная ошибка записи. Сообщите о баге в ТГК заста или на гитхаб, ведь вероятнее всего это не ваша вина. Подробнее: {}",
+                    e
+                );
                 info(app, &err_msg);
                 Err(err_msg)
             }
@@ -148,6 +166,32 @@ impl Hosts {
                     .to_string()
             })
             .unwrap_or_else(|| "Неизвестно".to_string())
+    }
+
+    pub fn get_installed_categories() -> Vec<String> {
+        let path = Self::get_path();
+        let content = fs::read_to_string(&path).unwrap_or_default();
+        let mut installed = Vec::new();
+        let mut inside_our_block = false;
+        for line in content.lines() {
+            let l = line.trim();
+            if l == Self::MALW_START || l == Self::FLOW_START {
+                inside_our_block = true;
+                continue;
+            }
+            if l == Self::MALW_END || l == Self::FLOW_END {
+                inside_our_block = false;
+                continue;
+            }
+            if inside_our_block && l.starts_with("# ") {
+                let cat_name = l.trim_start_matches("# ").trim().to_string();
+                if !cat_name.is_empty() && !cat_name.contains("Последнее обновление")
+                {
+                    installed.push(cat_name);
+                }
+            }
+        }
+        installed
     }
 
     pub fn get_categories(content: &str) -> HashMap<String, Vec<String>> {

@@ -24,6 +24,54 @@ pub enum AddType {
     Hostlist,
 }
 
+#[derive(serde::Serialize)]
+pub struct FileTree {
+    pub name: String,
+    pub is_dir: bool,
+    pub children: Option<Vec<FileTree>>,
+    pub path: String,
+}
+
+pub fn get_file_tree(app: AppHandle) -> Vec<FileTree> {
+    let root_path = Zapret::zapret_path(&app, "");
+    build_tree(&root_path)
+}
+
+fn build_tree(path: &std::path::Path) -> Vec<FileTree> {
+    let mut tree = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let name_low = name.to_lowercase(); //
+            let p = entry.path();
+            if name_low.starts_with("-hide") || name == "utils" {
+                continue;
+            }
+
+            let meta = entry.metadata().unwrap();
+            if meta.is_dir() {
+                tree.push(FileTree {
+                    name,
+                    is_dir: true,
+                    children: Some(build_tree(&p)),
+                    path: p.to_string_lossy().to_string(),
+                });
+            } else {
+                if name_low.ends_with(".txt") || name_low.ends_with(".zapret") {
+                    tree.push(FileTree {
+                        name,
+                        is_dir: false,
+                        children: None,
+                        path: p.to_string_lossy().to_string(),
+                    });
+                }
+            }
+        }
+    }
+    tree.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
+    tree
+}
+
 pub async fn process_incoming_url(app: AppHandle, url_str: String) {
     info(&app, &format!("zust:// url detect ->>> {}", url_str));
 

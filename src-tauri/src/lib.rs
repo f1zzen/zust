@@ -7,6 +7,7 @@ pub mod bypass;
 pub mod settings;
 pub mod utils;
 
+use ::tauri::Emitter;
 use ::tauri::Manager;
 use ::tauri::menu::Menu;
 use ::tauri::menu::MenuItem;
@@ -16,22 +17,27 @@ use ::tauri::tray::TrayIconEvent;
 use std::fs;
 
 mod tauri;
+
 use crate::bypass::tor::Tor;
 use crate::tauri::*;
+use crate::utils::info;
 use crate::utils::process_incoming_url;
 use crate::utils::register_zust_protocol;
 
 pub fn run() {
-    // исключение для работ программ, работающих с прокси
     unsafe {
         std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--no-sandbox");
+        std::env::set_var("WEBVIEW2_IGNORE_WEBVIEW_VERSION_MISMATCH", "1");
     }
+
     ::tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let _ = app.get_webview_window("main").map(|w| {
                 let _ = w.show();
                 let _ = w.unminimize();
                 let _ = w.set_focus();
+                let _ = w.emit("window-visible", true);
             });
             if let Some(url) = args.iter().find(|a| a.starts_with("zust://")) {
                 let handle = app.clone();
@@ -69,7 +75,6 @@ pub fn run() {
             save_hosts_selection,
             check_winws_update,
             open_strats_dir,
-            run_cleanup,
             check_legacy_folder,
             sync_zapret_files,
             apply_strategy_update,
@@ -88,24 +93,49 @@ pub fn run() {
             check_resources_exist,
             flush_dns,
             restore_zapret_files,
-            check_tor_status
+            check_tor_status,
+            manage_autostart,
+            get_file_tree,
+            open_in_editor,
+            get_installed_categories,
+            start_hotspot,
+            stop_hotspot,
+            get_hotspot_status,
+            zapret_4_tor
         ])
         .setup(|app| {
+            let handle = app.handle().clone();
             let _ = register_zust_protocol();
+            let handle_for_settings = handle.clone();
+            let handle_info = handle.clone();
+
+            ::tauri::async_runtime::spawn(async move {
+                let settings = crate::settings::load_settings();
+                if settings.auto_tor {
+                    if !Tor::check_existing_tor(handle_for_settings.clone()) {
+                        if let Err(e) = Tor::start(handle_for_settings.clone()).await {
+                            info(&handle_info, &e);
+                        }
+                    }
+                }
+                let _ = manage_autostart(settings.auto_start).await;
+            });
 
             let args: Vec<String> = std::env::args().collect();
             if let Some(u) = args.iter().find(|a| a.starts_with("zust://")) {
-                let handle = app.handle().clone();
                 let url = u.clone();
+                let handle_for_url = handle.clone();
                 ::tauri::async_runtime::spawn(async move {
-                    process_incoming_url(handle, url).await;
+                    process_incoming_url(handle_for_url, url).await;
                 });
             }
+
             if let Ok(path) = app.path().executable_dir() {
                 let mut log_path = path;
                 log_path.push("latest.log");
                 let _ = fs::remove_file(log_path);
             }
+
             let quit_i = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit_i])?;
 
@@ -128,18 +158,31 @@ pub fn run() {
                             let _ = w.show();
                             let _ = w.unminimize();
                             let _ = w.set_focus();
+                            let _ = w.emit("window-visible", true);
                         }
                     }
                 })
                 .build(app)?;
+
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let ::tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if crate::settings::load_settings().minimize_to_tray {
+            if window.label() != "main" {
+                return;
+            }
+
+            match event {
+                ::tauri::WindowEvent::CloseRequested { api, .. } => {
                     api.prevent_close();
                     let _ = window.hide();
+                    let _ = window.emit("window-visible", false);
                 }
+                ::tauri::WindowEvent::Resized(_) => {
+                    if let Ok(minimized) = window.is_minimized() {
+                        let _ = window.emit("window-visible", !minimized);
+                    }
+                }
+                _ => {}
             }
         })
         .run(::tauri::generate_context!())

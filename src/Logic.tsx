@@ -6,6 +6,7 @@ import { notify } from './Notifications';
 import { ZapretUtils } from "./ZapretUtils";
 import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const appWindow = getCurrentWindow();
 
@@ -15,6 +16,10 @@ export function log(text: string) {
 
 export function Logic() {
     const [activePage, setActivePage] = useState('home');
+    const handleSetActivePage = (page: string) => {
+        setActivePage(page);
+        window.dispatchEvent(new CustomEvent('page-switch', { detail: page }));
+    };
     const [isPinned, setIsPinned] = useState(() => {
         return localStorage.getItem('window_pinned') === 'true';
     });
@@ -30,16 +35,21 @@ export function Logic() {
     const [ipsetView, setIpsetView] = useState<'main' | 'custom'>('main');
     const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
     const [updatableStrats, setUpdatableStrats] = useState<string[]>([]);
-    const [isResolverOpen, setIsResolverOpen] = useState(false);
     const [isProxyModalOpen, setIsProxyModalOpen] = useState(false);
     const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
     const [isDeepLinkModalOpen, setIsDeepLinkModalOpen] = useState(false);
+    const [isSponsorsModalOpen, setIsSponsorsModalOpen] = useState(false);
+    const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
     const [deepLinkData, setDeepLinkData] = useState<{
         type: 'strategy' | 'ipset' | 'hostlist' | 'configure_zapret';
         payload: string;
         name?: string;
     } | null>(null);
+    const [torLogs, setTorLogs] = useState<string[]>([]);
     const logStart = useRef<HTMLDivElement>(null);
+    const [isHotspotOpen, setIsHotspotOpen] = useState(false);
+    const [isHotspotActive, setIsHotspotActive] = useState(false);
+    const [activeHotspotPort, setActiveHotspotPort] = useState<number | null>(null);
 
     const zapret = ZapretUtils();
     const handleHover = (text: string | null) => {
@@ -58,8 +68,20 @@ export function Logic() {
             const res = await fetch(`${url}?t=${Date.now()}`);
             const latestVersion = res.ok ? (await res.text()).trim() : null;
 
-            if (latestVersion && latestVersion !== currentVersion) {
-                setUpdateAvailable(latestVersion);
+            if (latestVersion) {
+                const c = currentVersion.split('.').map(Number);
+                const l = latestVersion.split('.').map(Number);
+
+                let isNew = false;
+                for (let i = 0; i < 3; i++) {
+                    if (l[i] > c[i]) { isNew = true; break; }
+                    if (l[i] < c[i]) break;
+                }
+
+                if (isNew) {
+                    setUpdateAvailable(latestVersion);
+                    notify(`Доступна новая версия: v${latestVersion}`, "info");
+                }
             }
         } catch (e) {
             log("Ошибка проверки версии: " + e);
@@ -73,8 +95,12 @@ export function Logic() {
         let intervalId: number | null = null;
 
         const refreshSettings = async () => {
-            const updated = await invoke<any>('load_settings');
-            document.body.classList.toggle('no-animations', updated.animationDisabled);
+            try {
+                const updated = await invoke<any>('load_settings');
+                document.body.classList.toggle('no-animations', updated.optimizationEnabled === true);
+            } catch (e) {
+                console.error("Failed to refresh settings", e);
+            }
         };
 
         const initPin = async () => {
@@ -97,6 +123,17 @@ export function Logic() {
         const initialize = async () => {
             await invoke('sync_zapret_files');
 
+            try {
+                const s = await invoke<any>('load_settings');
+                if (s.optimizationEnabled) {
+                    document.body.classList.add('no-animations');
+                } else {
+                    document.body.classList.remove('no-animations');
+                }
+            } catch (e) {
+                log("Initial settings load failed: " + e);
+            }
+
             const hasLegacy = await invoke('check_legacy_folder');
             if (hasLegacy) {
                 setIsLegacyOpen(true);
@@ -112,12 +149,8 @@ export function Logic() {
             ]);
             await emit("app_ready");
             checkUpdate();
-            invoke<boolean>("check_winws_update")
-                .then(wasUpdated => {
-                    if (wasUpdated) log("zapret (winws.exe) обновлен до последней версии!");
-                })
-                .catch(() => { });
-            log("Запуск обновления tls_max_ru");
+            invoke<boolean>("check_winws_update").catch(() => { });
+            log("Запускаем обновления TLS под MAX");
             try {
                 const result = await invoke<string>('update_tls_bin');
                 log(result);
@@ -190,18 +223,25 @@ export function Logic() {
                 case 'configure_zapret':
                     handleConfigureZapret(params);
                     break;
-
-                case 'open':
-                    if (params.page) setActivePage(params.page);
+                case 'milana_hametova':
+                    openUrl('https://i.imgur.com/CGqXjZB.png');
                     break;
-
+                case 'net':
+                    openUrl('https://i.imgur.com/GuuLZta.png');
+                    break;
                 default:
                     log(`Команда ${action} не распознана`);
             }
         });
 
         const unlistenLog = listen<string>('log-event', (event) => {
-            setLogs((prev) => [event.payload, ...prev.slice(0, 49)]);
+            const rawLog = event.payload;
+
+            if (rawLog.includes('[TOR]')) {
+                setTorLogs((prev) => [rawLog, ...prev.slice(0, 49)]);
+            } else {
+                setLogs((prev) => [rawLog, ...prev.slice(0, 49)]);
+            }
         });
 
         const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -268,14 +308,43 @@ export function Logic() {
         loadIpsetConfigs: async () => {
             const files = await invoke<string[]>('get_custom_configs');
             setCustomIpsetFiles(files);
+        },
+        stopHotspot: async () => {
+            try {
+                await invoke("stop_hotspot");
+                setIsHotspotActive(false);
+                setActiveHotspotPort(null);
+                notify("Точка доступа закрыта", "success");
+            } catch (e) {
+                log("frp ->>> err start" + e);
+            }
+        },
+        handleHotspotLaunched: (port: number) => {
+            setIsHotspotActive(true);
+            setActiveHotspotPort(port);
+        },
+        toggleHotspot: async () => {
+            if (isHotspotActive) {
+                await actions.stopHotspot();
+            } else {
+                try {
+                    const port = 7291;
+                    await invoke("start_hotspot", { port });
+                    actions.handleHotspotLaunched(port);
+                    notify("Прокси запущен", "success");
+                } catch (e) {
+                    log("Ошибка запуска: " + e);
+                    notify("Не удалось запустить прокси", "error");
+                }
+            }
         }
     };
 
     return {
         state: {
-            activePage, isPinned, logs, hoverText, lastText, isSelectorOpen, isConvertOpen, isIpsetModalOpen, isHostsModalOpen, customIpsetFiles, ipsetView, hoveredDesc, zapret, logStart, isLegacyOpen, updatableStrats, isResolverOpen, isProxyModalOpen, isNewsModalOpen, isDeepLinkModalOpen, updateAvailable, deepLinkData, isUpdateChecked
+            activePage, isPinned, logs, hoverText, lastText, isSelectorOpen, isConvertOpen, isIpsetModalOpen, isHostsModalOpen, customIpsetFiles, ipsetView, hoveredDesc, zapret, logStart, isLegacyOpen, updatableStrats, isProxyModalOpen, isNewsModalOpen, isDeepLinkModalOpen, updateAvailable, deepLinkData, isUpdateChecked, torLogs, isHotspotOpen, isHotspotActive, activeHotspotPort, isSponsorsModalOpen, isCommunityModalOpen
         },
-        prefs: { setActivePage, setHoverText: handleHover, setLastText, setIsSelectorOpen, setIsConvertOpen, setIsIpsetModalOpen, setIsHostsModalOpen, setIpsetView, setHoveredDesc, setUpdatableStrats, setIsResolverOpen, setIsProxyModalOpen, setIsNewsModalOpen, setIsDeepLinkModalOpen, setDeepLinkData },
+        prefs: { setActivePage: handleSetActivePage, setHoverText: handleHover, setLastText, setIsSelectorOpen, setIsConvertOpen, setIsIpsetModalOpen, setIsHostsModalOpen, setIpsetView, setHoveredDesc, setUpdatableStrats, setIsProxyModalOpen, setIsNewsModalOpen, setIsDeepLinkModalOpen, setDeepLinkData, setIsHotspotOpen, setIsHotspotActive, setActiveHotspotPort, setIsSponsorsModalOpen, setIsCommunityModalOpen },
         actions
     };
 }

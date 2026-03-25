@@ -1,98 +1,91 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Header } from '@/Buttons';
+import {
+    FileItem,
+    FolderItem,
+    FolderTrigger,
+    FolderContent,
+    Files,
+    SubFiles,
+} from '@/components/animate-ui/components/radix/files';
+
+interface FileNode {
+    name: string;
+    is_dir: boolean;
+    children?: FileNode[];
+    path: string;
+}
 
 export const EditorPage = () => {
     const [loading, setLoading] = useState(true);
-    const [files, setFiles] = useState<string[]>([]);
-    const [selectedFile, setSelectedFile] = useState<string | null>(null);
-    const [content, setContent] = useState("");
+    const [tree, setTree] = useState<FileNode[]>([]);
 
-    useEffect(() => { loadFiles(); }, []);
+    useEffect(() => { loadTree(); }, []);
 
-    async function loadFiles() {
+    async function loadTree() {
         setLoading(true);
         try {
-            const result = await invoke<string[]>('get_list_files');
-            setFiles(result);
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
+            const result = await invoke<FileNode[]>('get_file_tree');
+            setTree(result);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
     }
 
-    async function openFile(name: string) {
-        setLoading(true);
+    async function openInEditor(path: string) {
         try {
-            const text = await invoke<string>('read_file', { name });
-            setContent(text);
-            setSelectedFile(name);
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
+            await invoke('open_in_editor', { path });
+        } catch (e) {
+            console.error("Ошибка открытия:", e);
+        }
     }
 
-    async function saveFile() {
-        if (!selectedFile) return;
-        try {
-            await invoke('save_file', { name: selectedFile, content });
-            setSelectedFile(null);
-            loadFiles();
-        } catch (e) { console.error(e); }
-    }
-
-    if (selectedFile) {
-        return (
-            <div className="content">
-                <button className="back-button" onClick={() => setSelectedFile(null)}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="19" y1="12" x2="5" y2="12"></line>
-                        <polyline points="12 19 5 12 12 5"></polyline>
-                    </svg>
-                    Назад к списку
-                </button>
-
-                <div className="strategy-header">
-                    <div className="strat-title-row">
-                        <span className="strat-value">{selectedFile}</span>
-                    </div>
-                </div>
-
-                <textarea
-                    className="editor-textarea"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    spellCheck={false}
-                />
-
-                <div className="action-buttons">
-                    <button className="save-modal-btn" onClick={saveFile}>
-                        СОХРАНИТЬ ИЗМЕНЕНИЯ
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    const renderTree = (nodes: FileNode[]) => {
+        return nodes.map((node) => {
+            if (node.is_dir) {
+                return (
+                    <FolderItem key={node.path} value={node.name}>
+                        <FolderTrigger className="w-full flex items-center cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#d8b4fe] hover:text-[#1a0b2e]">
+                            <span className="truncate">{node.name}</span>
+                        </FolderTrigger>
+                        <FolderContent>
+                            <SubFiles className="ml-4">
+                                {renderTree(node.children || [])}
+                            </SubFiles>
+                        </FolderContent>
+                    </FolderItem>
+                );
+            }
+            return (
+                <FileItem
+                    key={node.path}
+                    onClick={() => openInEditor(node.path)}
+                    className="w-full flex items-center cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#d8b4fe] hover:text-[#1a0b2e] overflow-visible"
+                >
+                    {node.name}
+                </FileItem>
+            );
+        });
+    };
 
     return (
         <div className="content">
-            <div className="strategy-header">
-                <span className="strat-label">FILES</span>
-                <div className="strat-title-row">
-                    <span className="strat-value">Редактор списков</span>
-                </div>
-            </div>
-            <div className="editor-container">
+            <Header title="Редактор" />
+            <div className="relative mx-auto rounded-2xl border border-white/10 bg-[#0a0514]/60 backdrop-blur-md overflow-hidden shadow-2xl w-full max-w-120">
                 {loading ? (
-                    <div className="loader-box">
-                        <div className="spinner"></div>
-                        <span className="loading-text">СКАНИРОВАНИЕ...</span>
+                    <div className="p-20 flex flex-col items-center justify-center">
+                        <div className="spinner mb-4"></div>
+                        <span className="text-white/50 text-sm">Поиск файлов..</span>
                     </div>
                 ) : (
-                    <div className="file-grid">
-                        {files.map((file, i) => (
-                            <button key={file} className="file-card" onClick={() => openFile(file)} style={{ animationDelay: `${i * 0.1}s` }}>
-                                <div className="file-icon">📄</div>
-                                <span className="file-name">{file}</span>
-                            </button>
-                        ))}
-                    </div>
+                    <Files className="w-full p-4 overflow-y-auto max-h-125">
+                        {renderTree(tree)}
+                    </Files>
                 )}
             </div>
         </div>

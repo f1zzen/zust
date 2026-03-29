@@ -1,11 +1,7 @@
 use crate::sh;
 use crate::utils::*;
-use hickory_resolver::AsyncResolver;
-use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use md5::{Digest, Md5};
 use std::fs;
-use std::io::Write;
-use std::net::IpAddr;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -23,29 +19,8 @@ const WINWS_EXE: &str =
 const MAX_RU_BIN: &str = "https://github.com/Flowseal/zapret-discord-youtube/raw/refs/heads/main/bin/tls_clienthello_max_ru.bin";
 const HKLM_PATH: &str = r"System\CurrentControlSet\Services\zapret";
 const CONFIG_EXTENSION: &str = ".zapret";
-const FLOWSEAL_REPO: &str =
-    "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/refs/heads/main/";
-const REPO_STRAT_NAMES: &[&str] = &[
-    "general (ALT).bat",
-    "general (ALT2).bat",
-    "general (ALT3).bat",
-    "general (ALT4).bat",
-    "general (ALT5).bat",
-    "general (ALT6).bat",
-    "general (ALT7).bat",
-    "general (ALT8).bat",
-    "general (ALT9).bat",
-    "general (ALT10).bat",
-    "general (ALT11).bat",
-    "general.bat",
-    "general (FAKE TLS AUTO ALT).bat",
-    "general (FAKE TLS AUTO ALT2).bat",
-    "general (FAKE TLS AUTO ALT3).bat",
-    "general (FAKE TLS AUTO).bat",
-    "general (SIMPLE FAKE ALT).bat",
-    "general (SIMPLE FAKE ALT2).bat",
-    "general (SIMPLE FAKE).bat",
-];
+const STRATEGIES_REPO: &str =
+    "https://raw.githubusercontent.com/f1zzen/zust_strategies/refs/heads/main/";
 
 pub struct Zapret;
 pub struct ZExtensions;
@@ -173,62 +148,6 @@ impl Zapret {
         Ok(false)
     }
 
-    pub async fn add_ip(app: AppHandle, file_name: String, ip: String) -> Result<(), String> {
-        let lists_dir = Self::zapret_path(&app, "ipset-configs");
-        let mut file_path = lists_dir.join(&file_name);
-
-        if !file_path.exists() {
-            if &file_name != "ipset-all.txt" {
-                return Err(format!("Файл {} не найден", file_name));
-            } else {
-                file_path = Self::zapret_path(&app, "lists").join("ipset-all.txt");
-            }
-        }
-        let parts: Vec<&str> = ip.split('.').collect();
-        if parts.len() != 4 {
-            return Err("Некорректный формат IP. Ожидалось x.x.x.x".to_string());
-        }
-        let formatted_ip = format!("{}.{}.{}.0/24", parts[0], parts[1], parts[2]);
-
-        let mut file = std::fs::OpenOptions::new()
-            .append(true)
-            .open(&file_path)
-            .map_err(|e| e.to_string())?;
-        writeln!(file, "{}", formatted_ip).map_err(|e| e.to_string())?;
-
-        Ok(())
-    }
-
-    pub async fn resolve_host(host: String) -> Result<String, String> {
-        let resolver = AsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
-        let srv_name = format!("_minecraft._tcp.{}", host);
-        let target_host = if let Ok(srv_lookup) = resolver.srv_lookup(srv_name).await {
-            srv_lookup
-                .iter()
-                .next()
-                .map(|srv| srv.target().to_string().trim_end_matches('.').to_string())
-                .unwrap_or_else(|| host.clone())
-        } else {
-            host.clone()
-        };
-        let ip_lookup = resolver
-            .lookup_ip(target_host)
-            .await
-            .map_err(|e| format!("Ошибка резолва: {}", e))?;
-
-        let ip = ip_lookup
-            .iter()
-            .next()
-            .ok_or_else(|| "IP-адрес не найден".to_string())?;
-        match ip {
-            IpAddr::V4(v4) => {
-                let o = v4.octets();
-                Ok(format!("{}.{}.{}.0/24", o[0], o[1], o[2]))
-            }
-            IpAddr::V6(v6) => Ok(v6.to_string()),
-        }
-    }
-
     pub fn get_custom_ipset_files(app: &AppHandle) -> Vec<String> {
         let path = Self::zapret_path(app, "ipset-configs");
         if !path.exists() {
@@ -237,40 +156,47 @@ impl Zapret {
         list_files(path, ".txt")
     }
 
-    fn extract_args_from_bat(content: &str) -> Option<String> {
-        content
-            .find("winws.exe\"")
-            .map(|start_idx| content[start_idx + 11..].trim().to_string())
-    }
-
     pub async fn check_strategy_updates(app: AppHandle) -> Result<Vec<String>, String> {
         let client = reqwest::Client::new();
         let strats_dir = Self::zapret_path(&app, "strategies");
         let mut to_update = Vec::new();
 
-        for file_name in REPO_STRAT_NAMES {
-            let url = format!("{}{}", FLOWSEAL_REPO, file_name);
+        let list_url = format!("{}list", STRATEGIES_REPO);
+        let list_res = client
+            .get(&list_url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if !list_res.status().is_success() {
+            return Err(format!(
+                "Не удалось получить список стратегий: {}",
+                list_res.status()
+            ));
+        }
+
+        let list_content = list_res.text().await.map_err(|e| e.to_string())?;
+        let repo_strat_names: Vec<&str> = list_content.lines().filter(|l| !l.is_empty()).collect();
+
+        for file_name in repo_strat_names {
+            let url = format!("{}{}", STRATEGIES_REPO, file_name);
             let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
 
             if res.status().is_success() {
-                let remote_bat_content = res.text().await.map_err(|e| e.to_string())?;
+                let remote_content = res.text().await.map_err(|e| e.to_string())?;
+                let zapret_path = strats_dir.join(file_name);
 
-                if let Some(remote_args) = Self::extract_args_from_bat(&remote_bat_content) {
-                    let zapret_name = file_name.replace(".bat", CONFIG_EXTENSION);
-                    let zapret_path = strats_dir.join(&zapret_name);
-
-                    let mut needs_update = true;
-                    if zapret_path.exists() {
-                        let local_zapret_content =
-                            fs::read_to_string(&zapret_path).unwrap_or_default();
-                        if local_zapret_content.trim() == remote_args.trim() {
-                            needs_update = false;
-                        }
+                let mut needs_update = true;
+                if zapret_path.exists() {
+                    let local_content = fs::read_to_string(&zapret_path).unwrap_or_default();
+                    if local_content.trim() == remote_content.trim() {
+                        needs_update = false;
                     }
+                }
 
-                    if needs_update {
-                        to_update.push(file_name.to_string());
-                    }
+                if needs_update {
+                    to_update.push(file_name.to_string());
+                    println!("ТРЕБУЕТСЯ ОБНОВЛЕНИЕ {}", file_name.to_string())
                 }
             }
         }
@@ -281,7 +207,7 @@ impl Zapret {
         let client = reqwest::Client::new();
         let strats_dir = Self::zapret_path(&app, "strategies");
 
-        let url = format!("{}{}", FLOWSEAL_REPO, file_name);
+        let url = format!("{}{}", STRATEGIES_REPO, file_name);
         let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
 
         if res.status().is_success() {
@@ -541,9 +467,8 @@ impl Zapret {
             .replace("%GameFilterTCP%", filter)
             .replace("%GameFilterUDP%", filter)
             .replace("-user", "");
-
-        args = args.replace("^", "");
         args = args
+            .replace("^", "")
             .lines()
             .map(|line| line.trim())
             .filter(|line| !line.is_empty())
@@ -566,6 +491,10 @@ impl Zapret {
         info(app, &format!("%IPSET%: {}", ipset_path.display()));
 
         args = args.replace("%IPSET%", &format!("--ipset=\"{}\"", ipset_path.display()));
+        args = args.replace(
+            "--ipset=\"%LISTS%ipset-all.txt\"",
+            &format!("--ipset=\"{}\"", ipset_path.display()),
+        );
 
         if args.contains("%LISTS%") {
             info(app, &format!("%LISTS%: {}", lists_dir.display()));

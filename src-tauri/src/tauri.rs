@@ -186,16 +186,6 @@ pub async fn sync_zapret_files(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn add_ip(app: tauri::AppHandle, file_name: String, ip: String) -> Result<(), String> {
-    Zapret::add_ip(app, file_name, ip).await
-}
-
-#[tauri::command]
-pub async fn resolve_host(host: String) -> Result<String, String> {
-    Zapret::resolve_host(host).await
-}
-
-#[tauri::command]
 pub async fn get_proxy_list() -> Result<Vec<String>, String> {
     Proxies::get_proxy_list().await.map_err(|e| e.to_string())
 }

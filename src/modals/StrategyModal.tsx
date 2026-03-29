@@ -28,7 +28,7 @@ const UpdateButton = ({ name, onUpdated }: { name: string, onUpdated: () => void
         e.stopPropagation();
         setStatus('loading');
         try {
-            await invoke('apply_strategy_update', { fileName: name.replace('.zapret', '.bat') });
+            await invoke('apply_strategy_update', { fileName: name });
             setStatus('success');
             setTimeout(() => {
                 setStatus('idle');
@@ -88,7 +88,7 @@ export const StrategyModal = ({
                 <ModalContent>
                     {configs.map((cfg) => {
                         const isActive = stratName === cfg;
-                        const canUpdate = updatableStrats.includes(cfg.replace('.zapret', '.bat'));
+                        const canUpdate = updatableStrats.includes(cfg);
 
                         return (
                             <div
@@ -120,7 +120,7 @@ export const StrategyModal = ({
                                 ) : canUpdate && (
                                     <UpdateButton
                                         name={cfg}
-                                        onUpdated={() => setUpdatableStrats(prev => prev.filter(s => s !== cfg.replace('.zapret', '.bat')))}
+                                        onUpdated={() => setUpdatableStrats(prev => prev.filter(s => s !== cfg))}
                                     />
                                 )}
                             </div>

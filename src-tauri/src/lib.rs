@@ -79,8 +79,6 @@ pub fn run() {
             sync_zapret_files,
             apply_strategy_update,
             check_strategy_updates,
-            resolve_host,
-            add_ip,
             get_proxy_list,
             check_proxy_ping,
             update_tls_bin,

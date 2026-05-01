@@ -16,7 +16,6 @@ use winreg::enums::*;
 const STUN_BIN_DATA: &[u8] = include_bytes!("../../zapret/bin/stun.bin");
 const WINWS_EXE: &str =
     "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/winws.exe";
-const MAX_RU_BIN: &str = "https://github.com/Flowseal/zapret-discord-youtube/raw/refs/heads/main/bin/tls_clienthello_max_ru.bin";
 const HKLM_PATH: &str = r"System\CurrentControlSet\Services\zapret";
 const CONFIG_EXTENSION: &str = ".zapret";
 const STRATEGIES_REPO: &str =
@@ -72,26 +71,52 @@ impl Zapret {
             .and_then(|k| k.get_value("zapret-ipset-config"))
             .unwrap_or_else(|_| "ipset-all.txt".to_string())
     }
-
     pub async fn update_tls_bin(app: AppHandle) -> Result<String, String> {
-        let target_path = Zapret::zapret_path(&app, "bin").join("tls_clienthello_max_ru.bin");
-        let response = reqwest::get(MAX_RU_BIN)
-            .await
-            .map_err(|e| format!("Ошибка запроса! Хорош-ли твой интернет?: {}", e))?;
+        let client = reqwest::Client::new();
+        let bin_dir = Self::zapret_path(&app, "bin");
 
-        if response.status().is_success() {
-            let bytes = response
-                .bytes()
-                .await
-                .map_err(|e| format!("Неизвестная ошибка данных.. Всё нормально?: {}", e))?;
-
-            fs::write(&target_path, bytes)
-                .map_err(|e| format!("Неизвестная ошибка при записи файла. Всё хорошо?: {}", e))?;
-
-            Ok("Файл успешно обновлён!".to_string())
-        } else {
-            Err(format!("Сервер вернул ошибку: {}", response.status()))
+        if !bin_dir.exists() {
+            fs::create_dir_all(&bin_dir).map_err(|e| e.to_string())?;
         }
+
+        let list_url = format!("{}list_bin", STRATEGIES_REPO);
+        let list_res = client
+            .get(&list_url)
+            .send()
+            .await
+            .map_err(|e| format!("список ресурсов -: {}", e))?;
+
+        if !list_res.status().is_success() {
+            return Err(format!("ошибка list_bin: {}", list_res.status()));
+        }
+
+        let list_content = list_res.text().await.map_err(|e| e.to_string())?;
+        let urls: Vec<&str> = list_content.lines().filter(|l| !l.is_empty()).collect();
+
+        for file_url in urls {
+            let file_name = file_url.split('/').last().unwrap_or_default();
+            if file_name.is_empty() {
+                continue;
+            }
+
+            let target_path = bin_dir.join(file_name);
+
+            let res = client
+                .get(file_url)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if res.status().is_success() {
+                let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+                fs::write(&target_path, &bytes)
+                    .map_err(|e| format!("ошибка {}: {}", file_name, e))?;
+
+                info(&app, &format!("обновлены бинарники: {}", file_name));
+            }
+        }
+
+        Ok("success".into())
     }
 
     pub fn get_status() -> bool {
@@ -211,18 +236,19 @@ impl Zapret {
         let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
 
         if res.status().is_success() {
-            let bytes = res.bytes().await.map_err(|e| e.to_string())?;
-            let bat_path = strats_dir.join(&file_name);
-            fs::write(&bat_path, &bytes).map_err(|e| e.to_string())?;
-            Self::convert_multiple_bats(&app, vec![bat_path.to_string_lossy().into_owned()])
-                .await?;
-            let _ = fs::remove_file(bat_path);
+            let content = res.text().await.map_err(|e| e.to_string())?;
+            let final_name = if file_name.ends_with(CONFIG_EXTENSION) {
+                file_name
+            } else {
+                format!("{}{}", file_name, CONFIG_EXTENSION)
+            };
+
+            let file_path = strats_dir.join(final_name);
+            fs::write(&file_path, content.trim().as_bytes()).map_err(|e| e.to_string())?;
+
             Ok(())
         } else {
-            Err(format!(
-                "При подключении к github.com произошла ошибка {}",
-                res.status()
-            ))
+            Err(format!("Ошибка при загрузке стратегии: {}", res.status()))
         }
     }
 

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 
 export const SponsorsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
     const SPONSORS = [
-        { name: "neton4ik", amount: "200₽" },
+        { name: "neton4ik", amount: "400₽" },
+        { name: "Рустам", amount: "1063₽" }
     ];
 
     const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);

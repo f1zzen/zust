@@ -1,0 +1,228 @@
+// Главные кнопки включения - у каждой темы своя. Используются и для zapret, и для TOR.
+
+import { Theme } from "theme.slint";
+import { Icons, Icon } from "components.slint";
+import { MorphShape } from "@gen/morph.slint";
+import { Reactor } from "classic.slint";
+
+// Волна, которая расходится от кнопки в момент включения (один раз)
+component Wave inherits Rectangle {
+    in property <bool> fired;
+    in property <duration> delay;
+    property <float> s: 1;
+    border-radius: self.width / 2;
+    border-width: 2px;
+    border-color: Theme.primary;
+    background: transparent;
+    transform-scale: s;
+    opacity: fired && Theme.motion ? max(0, (1.9 - s) / 0.9) * 0.55 : 0;
+    states [
+        go when root.fired && Theme.motion: {
+            s: 1.9;
+            in {
+                animate s { duration: 1100ms; delay: root.delay; easing: cubic-bezier(0.2, 0.7, 0.3, 1); }
+            }
+        }
+    ]
+}
+
+// M3E: живая фигура. Выкл - круг; включение - фигура "распускается" в печеньку,
+// от неё расходятся волны, вокруг загорается аура; дальше медленно вращается.
+export component PowerM3E inherits Rectangle {
+    in property <int> state;
+    callback clicked;
+    property <bool> on: state == 2;
+    property <bool> busy: state == 1;
+    width: 260px;
+    height: 260px;
+
+    property <float> breath: Theme.motion ? 0.5 + 0.5 * sin(animation-tick() / 3.2s * 360deg) : 0.5;
+    property <float> wobble: busy && Theme.motion ? 0.07 + 0.05 * sin(animation-tick() / 700ms * 360deg) : 0;
+    property <angle> spin: !Theme.motion ? 0deg
+        : busy ? animation-tick() / 2.5s * 360deg
+        : on ? animation-tick() / 30s * 360deg : 0deg;
+    property <length> core: self.width * 0.76;
+
+    // аура: мягкое "дыхание" света вокруг, пока всё работает
+    Rectangle {
+        width: root.width * 1.9;
+        height: self.width;
+        background: @radial-gradient(circle, Theme.primary.transparentize(62%) 0%, Theme.primary.transparentize(88%) 35%, #00000000 68%);
+        opacity: root.on ? 0.65 + 0.35 * root.breath : 0;
+        animate opacity { duration: Theme.slow; }
+    }
+    Wave { width: root.core; height: root.core; fired: root.on; delay: 0ms; }
+    Wave { width: root.core; height: root.core; fired: root.on; delay: 180ms; }
+
+    // ореол второго тона, вращается навстречу
+    MorphShape {
+        width: root.core;
+        height: root.core;
+        lobes: 12;
+        amp: root.on ? 0.04 : 0;
+        rotation: -root.spin * 0.6;
+        fill: Theme.tertiary.transparentize(72%);
+        opacity: root.on ? 1 : 0;
+        transform-scale: root.on ? 1.22 : 0.85;
+        animate opacity, transform-scale { duration: Theme.slow; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+        animate amp { duration: Theme.slow; }
+    }
+    // основа (выключено) и цветная фигура поверх - цвет проявляется плавно
+    MorphShape {
+        width: root.core;
+        height: root.core;
+        lobes: 9;
+        amp: root.busy ? root.wobble : root.on ? 0.075 : 0;
+        rotation: root.spin;
+        fill: root.state == 3 ? Theme.error.transparentize(60%) : Theme.surface-high;
+        stroke: Theme.outline;
+        stroke-width: 1px;
+        transform-scale: ta.pressed ? 0.9 : root.on ? 1 : 0.92;
+        animate amp { duration: Theme.slow; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+        animate transform-scale { duration: Theme.normal; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    }
+    MorphShape {
+        width: root.core;
+        height: root.core;
+        lobes: 9;
+        amp: root.busy ? root.wobble : root.on ? 0.075 : 0;
+        rotation: root.spin;
+        fill: @linear-gradient(140deg, Theme.primary.brighter(18%) 0%, Theme.primary 45%, Theme.primary.darker(28%) 100%);
+        opacity: root.on ? 1 : root.busy ? 0.35 : 0;
+        transform-scale: ta.pressed ? 0.9 : root.on ? 1 : 0.92;
+        animate opacity { duration: Theme.normal; }
+        animate amp { duration: Theme.slow; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+        animate transform-scale { duration: Theme.normal; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    }
+    Rectangle {
+        width: root.core * 0.6;
+        height: root.core * 0.6;
+        y: root.height / 2 - root.core * 0.42;
+        background: @radial-gradient(circle, #ffffff2e 0%, #ffffff00 70%);
+        opacity: root.on ? 1 : 0;
+        animate opacity { duration: Theme.slow; }
+    }
+    Icon {
+        name: Icons.power;
+        width: 64px;
+        height: 64px;
+        stroke-width: 2.6px;
+        color: root.on ? Theme.on-primary : ta.has-hover ? Theme.on-surface : Theme.on-surface-variant;
+        transform-scale: ta.pressed ? 0.85 : 1;
+        animate transform-scale { duration: Theme.fast; }
+        animate color { duration: Theme.normal; }
+    }
+    ta := TouchArea {
+        enabled: !root.busy;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Тёплая: большой "физический" переключатель с ползунком.
+export component PowerWarm inherits Rectangle {
+    in property <int> state;
+    callback clicked;
+    property <bool> on: state == 2;
+    property <bool> busy: state == 1;
+    width: 196px;
+    height: 104px;
+    border-radius: self.height / 2;
+    background: on ? Theme.primary : Theme.surface-high;
+    border-width: on ? 0px : 1px;
+    border-color: Theme.outline;
+    animate background { duration: Theme.slow; easing: ease-in-out; }
+
+
+    knob := Rectangle {
+        property <length> pad: 8px;
+        width: root.height - 2 * pad;
+        height: self.width;
+        y: pad;
+        x: root.on || root.busy ? root.width - self.width - pad : pad;
+        border-radius: self.width / 2;
+        background: root.on ? Theme.on-primary : Theme.surface;
+        drop-shadow-blur: 8px;
+        drop-shadow-color: #00000030;
+        drop-shadow-offset-y: 2px;
+        animate x { duration: Theme.slow; easing: cubic-bezier(0.22, 1.2, 0.36, 1); }
+        Icon {
+            name: Icons.power;
+            width: 32px;
+            height: 32px;
+            color: root.on ? Theme.primary : Theme.on-surface-variant;
+        }
+    }
+    ta := TouchArea {
+        enabled: !root.busy;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Моно: текстовая кнопка-терминал
+export component PowerMono inherits Rectangle {
+    in property <int> state;
+    callback clicked;
+    property <bool> on: state == 2;
+    property <bool> busy: state == 1;
+    property <bool> caret: Theme.motion ? Math.mod(animation-tick() / 1ms, 1000) < 500 : true;
+    width: 260px;
+    height: 96px;
+    border-radius: Theme.radius-m;
+    background: on ? Theme.on-surface : ta.has-hover ? Theme.surface-high : Theme.surface;
+    border-width: on ? 0px : 1px;
+    border-color: Theme.on-surface;
+    transform-scale: ta.pressed ? 0.97 : 1;
+    animate background { duration: Theme.fast; }
+    animate transform-scale { duration: Theme.fast; }
+    Text {
+        text: root.busy ? ("запуск" + (root.caret ? "_" : " "))
+            : root.on ? "[ выключить ]" : "[ включить ]";
+        font-size: 20px;
+        font-weight: 500;
+        color: root.on ? Theme.background : Theme.on-surface;
+    }
+    ta := TouchArea {
+        enabled: !root.busy;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Лёгкая: простой круг
+export component PowerCircle inherits Rectangle {
+    in property <int> state;
+    callback clicked;
+    property <bool> on: state == 2;
+    width: 176px;
+    height: 176px;
+    border-radius: self.width / 2;
+    background: on ? Theme.primary : ta.has-hover ? Theme.surface-high.brighter(10%) : Theme.surface-high;
+    Icon {
+        name: Icons.power;
+        width: 60px;
+        height: 60px;
+        stroke-width: 2.4px;
+        color: root.on ? Theme.on-primary : Theme.on-surface-variant;
+    }
+    ta := TouchArea {
+        enabled: root.state != 1;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Кнопка текущей темы. progress (0–100) показывается в "Классике" полоской снизу.
+export component PowerButton inherits HorizontalLayout {
+    in property <int> state;
+    in property <int> progress: -1;
+    in property <LayoutAlignment> align: LayoutAlignment.center;
+    callback clicked;
+    alignment: align;
+    if Theme.m3e: PowerM3E { state: root.state; clicked => { root.clicked(); } }
+    if Theme.warm: PowerWarm { state: root.state; clicked => { root.clicked(); } }
+    if Theme.mono: PowerMono { state: root.state; clicked => { root.clicked(); } }
+    if Theme.classic: Reactor { state: root.state; progress: root.progress; clicked => { root.clicked(); } }
+    if Theme.lite: PowerCircle { state: root.state; clicked => { root.clicked(); } }
+}

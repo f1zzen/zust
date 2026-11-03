@@ -1,0 +1,37 @@
+[package]
+name = "zust-core"
+version = "2.1.0"
+description = "Логика Zust без интерфейса: zapret, TOR, hosts, прокси, точка доступа."
+authors = ["f1zzen"]
+edition = "2024"
+
+[lib]
+name = "zust_core"
+
+[build-dependencies]
+sha2 = "0.10"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.149"
+# системный TLS: SChannel на Windows, OpenSSL на Linux (без сборки aws-lc из исходников)
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "native-tls", "charset", "http2"] }
+tokio = { version = "1.49.0", features = ["full"] }
+regex = "1.12.3"
+sha2 = "0.10"
+chrono = { version = "0.4.43", features = ["serde"] }
+rand = "0.8"
+uuid = { version = "1.22.0", features = ["v4"] }
+futures = "0.3.32"
+url = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55.0"
+is_elevated = "0.1.2"
+runas = "1.2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.182"
+# распаковка nfqws из релиза bol-van/zapret
+flate2 = "1"
+tar = "0.4"

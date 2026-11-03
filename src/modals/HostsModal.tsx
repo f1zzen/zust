@@ -1,11 +1,9 @@
+import { Modal } from "./Modal";
 import { useEffect, useState, useMemo, memo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { notify } from "../Notifications";
-import { log } from "../Logic";
-import { useModalAnimation } from "./useModalAnimation";
-import { ModalBlock, ModalContent, ModalFooter, ModalHeader, SelectButton } from "@/Buttons";
+import { api, log } from "@/lib/api";
+import { ModalContent, ModalFooter, ModalHeader, SelectButton } from "@/Buttons";
 import { cn } from "@/lib/utils";
-import React from "react";
 
 const LIMIT_DOMAINS = 50;
 
@@ -86,7 +84,6 @@ const CategoryItem = ({
 );
 
 export const HostsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
     const [data, setData] = useState<Record<string, string[]>>({});
     const [loading, setLoading] = useState(true);
     const [expanded, setExpanded] = useState<string[]>([]);
@@ -102,8 +99,8 @@ export const HostsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
         try {
             const [result, installed] = await Promise.all([
-                invoke<{ date: string; categories: Record<string, string[]> }>("get_hosts_data"),
-                invoke<string[]>("get_installed_categories"),
+                api.hostsData(),
+                api.installedHostsCategories(),
                 new Promise(resolve => setTimeout(resolve, 600))
             ]);
 
@@ -159,21 +156,19 @@ export const HostsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             if (malwContent) finalBody += `${MALW_START}\n${malwContent}${MALW_END}\n`;
             if (flowContent) finalBody += `${FLOW_START}\n${flowContent}${FLOW_END}\n`;
 
-            await invoke("save_hosts_selection", { selectedLines: finalBody.trim() });
+            await api.saveHosts(finalBody.trim());
             notify("Конфигурация hosts обновлена", "success");
             onClose();
         } catch (e) {
-            notify("Ошибка при сохранении", "error");
+            log("hosts save err " + e);
+            notify(`Ошибка при сохранении: ${e}`, "error");
         } finally {
             setSaving(false);
         }
     };
 
-    if (!shouldRender) return null;
-
     return (
-        <div className={cn("fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300", isAnimatingOut ? "opacity-0" : "opacity-100")} onClick={onClose}>
-            <ModalBlock onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+        <Modal isOpen={isOpen} onClose={onClose}>
                 <ModalHeader
                     title="Настройка"
                     description={<span className="opacity-45">Последнее обновление: {lastUpdate}</span>}
@@ -222,7 +217,6 @@ export const HostsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                     <button className="text-[13px] font-medium text-zinc-500 hover:text-white transition-colors" onClick={onClose}>Отмена</button>
                     <SelectButton onClick={handleSave} front={saving ? "..." : "Применить"} back="Готово" />
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

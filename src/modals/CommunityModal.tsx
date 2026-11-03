@@ -1,6 +1,5 @@
-import { cn } from "@/lib/utils";
-import { useModalAnimation } from "./useModalAnimation";
-import { InfoHeader, ModalBlock, ModalContent, ModalFooter, ModalHeader } from "@/Buttons";
+import { Modal } from "./Modal";
+import { InfoHeader, ModalContent, ModalFooter, ModalHeader } from "@/Buttons";
 import { Button } from "@/components/ui/button";
 
 export const CommunityModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
@@ -14,19 +13,8 @@ export const CommunityModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: 
         { name: "T0ko", role: "Z.UST-тян" }
     ];
 
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
-
-    if (!shouldRender) return null;
-
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={onClose}
-        >
-            <ModalBlock onClick={(e: any) => e.stopPropagation()}>
+        <Modal isOpen={isOpen} onClose={onClose}>
                 <ModalHeader
                     title="Наше Сообщество"
                     status="	(´ ∀ ` *)"
@@ -71,7 +59,6 @@ export const CommunityModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: 
                         ← Назад
                     </Button>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

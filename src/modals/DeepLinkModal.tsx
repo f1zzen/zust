@@ -1,10 +1,9 @@
+import { Modal, CloseButton } from "./Modal";
 import { useEffect, useState, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { useModalAnimation } from "./useModalAnimation";
 import { notify } from "../Notifications";
-import { log } from "../Logic";
+import { api, log } from "@/lib/api";
+import type { Zapret } from "@/ZapretUtils";
 import {
-    ModalBlock,
     ModalHeader,
     ModalContent,
     ModalFooter,
@@ -14,15 +13,17 @@ import {
 } from "@/Buttons";
 import { cn } from "@/lib/utils";
 
+export interface DeepLinkData {
+    type: 'strategy' | 'ipset' | 'hostlist' | 'configure_zapret' | 'restore_zapret';
+    payload: string;
+    name?: string;
+}
+
 interface Props {
     isOpen: boolean;
     onClose: () => void;
-    state: any;
-    data: {
-        type: 'strategy' | 'ipset' | 'hostlist' | 'configure_zapret' | 'restore_zapret';
-        payload: string;
-        name?: string;
-    } | null;
+    zapret: Zapret;
+    data: DeepLinkData | null;
 }
 
 const TYPE_CONFIG = {
@@ -58,103 +59,83 @@ const ConfigNode = ({ label, status, title, desc, icon, isError, isDisabled }: a
     </div>
 );
 
-export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
+export const DeepLinkModal = ({ isOpen, onClose, zapret, data }: Props) => {
     const [loading, setLoading] = useState(false);
     const [missingResources, setMissingResources] = useState<string[]>([]);
 
     const configData = useMemo(() => {
-        if (data?.type === 'configure_zapret' && data.payload) {
-            try {
-                return JSON.parse(data.payload);
-            } catch (e) {
-                log("Ошибка парсинга payload DeepLink");
-                return null;
-            }
+        if (data?.type !== 'configure_zapret' || !data.payload) return null;
+        try {
+            return JSON.parse(data.payload);
+        } catch {
+            log("Ошибка разбора параметров deeplink");
+            return null;
         }
-        return null;
     }, [data]);
 
     useEffect(() => {
-        const checkResources = async () => {
-            setMissingResources([]);
-            if (data?.type === 'configure_zapret' && configData) {
-                try {
-                    const missing = await invoke<string[]>("check_resources_exist", {
-                        strategy: configData.strategy || null,
-                        ipset: configData.ipset_config || null
-                    });
-                    setMissingResources(missing);
-                } catch (e) {
-                    log(`Ошибка проверки ресурсов: ${e}`);
-                }
-            }
-        };
-        if (isOpen) checkResources();
-    }, [isOpen, data, configData]);
+        setMissingResources([]);
+        if (!isOpen || !configData) return;
+        api.missingResources(configData.strategy || null, configData.ipset_config || null)
+            .then(setMissingResources)
+            .catch((e) => log(`Ошибка проверки ресурсов: ${e}`));
+    }, [isOpen, configData]);
+
+    const applyConfiguration = async () => {
+        const strategy = configData.strategy.endsWith('.zapret') ? configData.strategy : `${configData.strategy}.zapret`;
+        let ipset: string | undefined = configData.ipset_config;
+        if (ipset && !['any', 'none'].includes(ipset.toLowerCase()) && !ipset.endsWith('.txt')) {
+            ipset = `${ipset}.txt`;
+        }
+        const settings = await api.loadSettings();
+        await api.saveSettings({ ...settings, gameFilter: configData.game_filter === 'true' });
+        window.dispatchEvent(new Event('settings-changed'));
+
+        if (ipset) zapret.setIpset(ipset);
+        zapret.setStrategy(strategy);
+        await zapret.refreshList();
+        await zapret.start(strategy, ipset);
+        notify("Конфигурация применена", "success");
+    };
+
+    const importFile = async () => {
+        if (!data) return;
+        const message = await api.addFromLink(data.type as 'strategy' | 'ipset' | 'hostlist', data.payload, data.name);
+        await zapret.refreshList();
+        notify(message, "success");
+        // новый список доменов начинает работать только после перезапуска zapret
+        if (data.type === 'hostlist' && zapret.status === 'running') await zapret.start();
+    };
 
     const handleConfirm = async () => {
-        if (loading || (data?.type === 'configure_zapret' && missingResources.length > 0)) return;
+        if (!data || loading || (data.type === 'configure_zapret' && missingResources.length > 0)) return;
         setLoading(true);
-
         try {
-            if (data?.type === 'configure_zapret' && configData) {
-                const fullStrategyName = configData.strategy.endsWith('.zapret') ? configData.strategy : `${configData.strategy}.zapret`;
-                let fullIpsetName = configData.ipset_config;
-
-                if (fullIpsetName && !['any', 'none'].includes(fullIpsetName.toLowerCase()) && !fullIpsetName.endsWith('.txt')) {
-                    fullIpsetName = `${fullIpsetName}.txt`;
-                }
-
-                const isGameFilter = configData.game_filter === 'true';
-                const currentSettings = await invoke<any>('load_settings');
-
-                await invoke('save_settings', { settings: { ...currentSettings, gameFilter: isGameFilter } });
-                await invoke('game_filter_toggle', { enabled: isGameFilter });
-
-                localStorage.setItem("selected_strategy", fullStrategyName);
-                state.zapret.setSelectedConfig(fullStrategyName);
-
-                if (fullIpsetName) {
-                    localStorage.setItem("selected_ipset", fullIpsetName);
-                    state.zapret.setSelectedIpset(fullIpsetName);
-                }
-
-                const newList = await invoke<string[]>('get_list_strategies');
-                state.zapret.setConfigs(newList);
-                await state.zapret.startProcess(fullStrategyName, fullIpsetName);
-
-                window.dispatchEvent(new Event('settings-changed'));
-                notify("Конфигурация применена", "success");
-            } else if (data?.type === 'restore_zapret') {
-                if (state.zapret.status === 'running') await state.zapret.stopProcess();
-                await invoke('restore_zapret_files');
+            if (data.type === 'configure_zapret' && configData) {
+                await applyConfiguration();
+            } else if (data.type === 'restore_zapret') {
+                await api.restoreZapretFiles();
                 localStorage.removeItem("selected_strategy");
                 localStorage.removeItem("selected_ipset");
-                notify("Система восстановлена", "success");
+                notify("Файлы zapret восстановлены", "success");
                 setTimeout(() => window.location.reload(), 1000);
+            } else {
+                await importFile();
             }
             onClose();
         } catch (e) {
-            log(`DeepLink Error: ${e}`);
-            notify("Ошибка выполнения", "error");
+            log(`Ошибка deeplink: ${e}`);
+            notify(`Ошибка: ${e}`, "error");
         } finally {
             setLoading(false);
         }
     };
 
-    if (!shouldRender || !data) return null;
+    if (!data) return null;
     const currentConfig = TYPE_CONFIG[data.type] || { label: 'UNKNOWN', icon: '❓' };
 
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={onClose}
-        >
-            <ModalBlock onClick={(e: any) => e.stopPropagation()}>
+        <Modal isOpen={isOpen} onClose={onClose} locked={loading}>
                 <ModalHeader
                     title={data.type === 'configure_zapret' ? 'Настройка системы' :
                         data.type === 'restore_zapret' ? 'Восстановление' : 'Импорт объекта'}
@@ -221,12 +202,7 @@ export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
                 </ModalContent>
 
                 <ModalFooter>
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-[13px] text-white/40 hover:text-white transition-colors"
-                    >
-                        Отмена
-                    </button>
+                    <CloseButton onClick={onClose}>Отмена</CloseButton>
 
                     <SelectButton
                         onClick={handleConfirm}
@@ -241,7 +217,6 @@ export const DeepLinkModal = ({ isOpen, onClose, state, data }: Props) => {
                         back="Подтвердить"
                     />
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

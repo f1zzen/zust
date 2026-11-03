@@ -1,0 +1,38 @@
+// Пасхалка из Zust 2: 20 нажатий на "Главную" подряд - вместо знака скример,
+// нажатие на него - звук.
+
+import { Logo } from "logo.slint";
+import { Backend, Ui } from "globals.slint";
+
+export component MarkOrScare inherits Rectangle {
+    in property <bool> interactive: true;
+    property <[image]> pics: [
+        @image-url("scare/1.jpg"), @image-url("scare/2.jpg"), @image-url("scare/3.jpg"),
+        @image-url("scare/4.jpg"), @image-url("scare/5.jpg"), @image-url("scare/6.jpg"),
+        @image-url("scare/7.jpg"), @image-url("scare/8.jpg"), @image-url("scare/9.jpg"),
+        @image-url("scare/10.jpg"), @image-url("scare/11.jpg"), @image-url("scare/12.jpg"),
+    ];
+    width: 40px;
+    height: 40px;
+
+    if Ui.scare == 0: Logo {
+        width: root.width;
+        height: root.height;
+        interactive: root.interactive;
+    }
+    if Ui.scare > 0: Rectangle {
+        border-radius: root.width / 4;
+        clip: true;
+        Image {
+            width: 100%;
+            height: 100%;
+            source: root.pics[Ui.scare - 1];
+            image-fit: cover;
+        }
+        TouchArea {
+            enabled: root.interactive;
+            mouse-cursor: pointer;
+            clicked => { Backend.scare-sound(); }
+        }
+    }
+}

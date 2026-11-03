@@ -1,0 +1,26 @@
+{
+  "bundle": {
+    "targets": [
+      "deb",
+      "appimage"
+    ],
+    "resources": [
+      "./zapret/lists/*",
+      "./zapret/strategies/*",
+      "./zapret/bin/*.bin"
+    ],
+    "linux": {
+      "deb": {
+        "depends": [
+          "nftables",
+          "policykit-1 | polkitd",
+          "libwebkit2gtk-4.1-0"
+        ],
+        "recommends": [
+          "tor",
+          "obfs4proxy"
+        ]
+      }
+    }
+  }
+}

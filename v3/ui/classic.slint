@@ -1,0 +1,594 @@
+// "Классика" - интерфейс Zust 2.
+
+import { Theme } from "theme.slint";
+import { Icons, Icon } from "components.slint";
+import { MorphShape } from "@gen/morph.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Backend, Ui } from "globals.slint";
+
+// ---------- фон ----------
+
+// Слой звёзд: плывут вверх по кругу, как в v2 (три слоя с разной скоростью)
+component StarLayer inherits Rectangle {
+    in property <int> count;
+    in property <length> size;
+    // скорость как в Zust 2: 100 / 50 / 33 px в секунду
+    in property <length> speed;
+    in property <int> seed;
+    property <duration> period: root.height / root.speed * 1s;
+    property <float> phase: Theme.motion ? Math.mod(animation-tick() / period, 1) : 0;
+    for i in count: Rectangle {
+        property <float> fx: Math.mod((i + 1) * 7919 + seed * 104729, 997) / 997;
+        property <float> fy: Math.mod((i + 1) * 6053 + seed * 15485, 991) / 991;
+        x: root.width * fx;
+        y: root.height * Math.mod(fy - root.phase + 1, 1);
+        width: root.size;
+        height: root.size;
+        border-radius: root.size / 2;
+        background: #ffffff;
+        opacity: 0.35 + 0.5 * fx;
+    }
+}
+
+export component ClassicBackground inherits Rectangle {
+    background: #05010a;
+    clip: true;
+    // радиальное свечение снизу (ellipse at bottom, #180a30 → чёрный)
+    Rectangle {
+        width: root.width * 1.6;
+        height: root.height * 1.5;
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height / 2;
+        background: @radial-gradient(circle, Theme.accent.mix(#0b0418, 22%) 0%, #0b041800 70%);
+    }
+    // параллакс: звёзды чуть смещаются за мышью
+    mouse := TouchArea { }
+    property <length> ox: mouse.has-hover ? -(mouse.mouse-x - root.width / 2) * 0.03 : 0;
+    property <length> oy: mouse.has-hover ? -(mouse.mouse-y - root.height / 2) * 0.03 : 0;
+    stars := Rectangle {
+        x: root.ox;
+        y: root.oy;
+        width: root.width;
+        height: root.height;
+        animate x, y { duration: Theme.motion ? 900ms : 0ms; easing: ease-out; }
+        StarLayer { count: 90; size: 1px; speed: 100px; seed: 1; }
+        StarLayer { count: 40; size: 2px; speed: 50px; seed: 2; }
+        StarLayer { count: 16; size: 3px; speed: 33px; seed: 3; }
+    }
+}
+
+// ---------- реактор ----------
+
+export component Reactor inherits Rectangle {
+    in property <int> state;
+    // 0–100: полоска прогресса снизу во время подключения (TOR); -1 - не показывать
+    in property <int> progress: -1;
+    callback clicked;
+    property <bool> on: state == 2;
+    property <bool> busy: state == 1;
+    property <angle> t: Theme.motion ? animation-tick() / 8s * 360deg : 0deg;
+    width: 320px;
+    height: 120px;
+    border-radius: 20px;
+    background: #ffffff08;
+    border-width: 1px;
+    border-color: Theme.primary.transparentize(ta.has-hover ? 60% : 80%);
+    clip: true;
+    transform-scale: ta.pressed ? 0.97 : 1;
+    animate transform-scale { duration: Theme.normal; easing: cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    animate border-color { duration: Theme.normal; }
+
+    Rectangle {
+        background: @radial-gradient(circle, Theme.primary.transparentize(80%) 0%, #00000000 70%);
+        opacity: ta.has-hover ? 1 : 0;
+        animate opacity { duration: Theme.normal; }
+    }
+    // два органических кольца, вращаются навстречу
+    MorphShape {
+        width: 100%;
+        height: 100%;
+        lobes: 2;
+        amp: 0.12;
+        sx: self.width / self.height;
+        rotation: root.t;
+        fill: transparent;
+        stroke: Theme.primary.transparentize(85%);
+        stroke-width: 1.5px;
+    }
+    MorphShape {
+        x: 10px;
+        y: 10px;
+        width: parent.width - 20px;
+        height: parent.height - 20px;
+        lobes: 3;
+        amp: 0.1;
+        sx: self.width / self.height;
+        rotation: -root.t * 8 / 12;
+        fill: transparent;
+        stroke: #6366f1.transparentize(85%);
+        stroke-width: 1.5px;
+    }
+
+    if root.state == 0 || root.state == 3: Icon {
+        name: "M18 6 L6 18 M6 6 L18 18";
+        width: 32px;
+        height: 32px;
+        stroke-width: 2.5px;
+        color: root.state == 3 ? Theme.error : Theme.primary;
+    }
+    if root.busy: MorphShape {
+        width: 40px;
+        height: 40px;
+        // полукруг из "печеньки" без лепестков: рисуем обводкой только часть
+        amp: 0;
+        fill: transparent;
+        stroke: Theme.primary.transparentize(85%);
+        stroke-width: 3px;
+    }
+    if root.busy: arc := Path {
+        width: 40px;
+        height: 40px;
+        viewbox-width: 40;
+        viewbox-height: 40;
+        property <angle> a: Theme.motion ? animation-tick() / 1s * 360deg : 0deg;
+        MoveTo { x: 20 + 18 * cos(arc.a); y: 20 + 18 * sin(arc.a); }
+        ArcTo {
+            x: 20 + 18 * cos(arc.a + 90deg);
+            y: 20 + 18 * sin(arc.a + 90deg);
+            radius-x: 18;
+            radius-y: 18;
+            sweep: true;
+        }
+        fill: transparent;
+        stroke: Theme.primary;
+        stroke-width: 3px;
+        stroke-line-cap: round;
+    }
+    if root.on: Rectangle {
+        property <float> pulse: Theme.motion ? 0.5 + 0.5 * sin(animation-tick() / 2s * 360deg) : 0.5;
+        width: 90px;
+        height: 90px;
+        Rectangle {
+            background: @radial-gradient(circle, Theme.primary.transparentize(55%) 0%, #00000000 65%);
+            opacity: 0.5 + 0.5 * parent.pulse;
+        }
+        Path {
+            width: 40px;
+            height: 40px;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 1 C12.6 7.5 16.5 11.4 23 12 C16.5 12.6 12.6 16.5 12 23 C11.4 16.5 7.5 12.6 1 12 C7.5 11.4 11.4 7.5 12 1 Z";
+            fill: Theme.primary;
+            opacity: 0.8 + 0.2 * parent.pulse;
+            transform-scale: 1 + 0.1 * parent.pulse;
+        }
+    }
+    if root.busy && root.progress >= 0: Rectangle {
+        x: 0;
+        y: root.height - 2px;
+        height: 2px;
+        width: root.width * root.progress / 100;
+        background: Theme.primary;
+        animate width { duration: Theme.normal; }
+    }
+    ta := TouchArea {
+        enabled: !root.busy;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// ---------- кнопки разделов ----------
+
+export component Separator inherits HorizontalLayout {
+    in property <string> label;
+    spacing: 10px;
+    VerticalLayout {
+        alignment: center;
+        Rectangle { height: 1px; background: #ffffff1a; }
+    }
+    Text {
+        text: root.label;
+        font-size: 12px;
+        letter-spacing: 1px;
+        color: #ffffff4d;
+        horizontal-stretch: 0;
+    }
+    VerticalLayout {
+        alignment: center;
+        Rectangle { height: 1px; background: #ffffff1a; }
+    }
+}
+
+export component WideBtn inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> icon;
+    in property <float> icon-box: 24;
+    in property <color> tint;
+    callback clicked;
+    height: 76px;
+    // равная ширина кнопок в ряду, независимо от длины подписи
+    horizontal-stretch: 1;
+    preferred-width: 100px;
+    border-radius: 16px;
+    background: ta.has-hover ? #212124 : #18181b66;
+    border-width: 1px;
+    border-color: ta.has-hover ? #ffffff26 : #ffffff0d;
+    clip: true;
+    animate background, border-color { duration: Theme.normal; }
+
+    // блик, пробегающий слева направо при наведении
+    Rectangle {
+        x: ta.has-hover ? root.width : -root.width;
+        width: root.width;
+        background: @linear-gradient(90deg, #ffffff00 0%, #ffffff08 50%, #ffffff00 100%);
+        animate x { duration: Theme.motion ? 500ms : 0ms; }
+    }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 14px;
+        VerticalLayout {
+            alignment: center;
+            Icon {
+                name: root.icon;
+                viewbox: root.icon-box;
+                width: 22px;
+                height: 22px;
+                color: root.tint;
+                opacity: ta.has-hover ? 1 : 0.45;
+                animate opacity { duration: Theme.normal; }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            Text { text: root.title; font-size: 15px; color: ta.has-hover ? #ffffff : #e5e5e5; }
+            Text { text: root.subtitle; font-size: 12px; color: #71717a; wrap: word-wrap; }
+        }
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: "→";
+                color: #ffffff;
+                opacity: ta.has-hover ? 1 : 0;
+                animate opacity { duration: Theme.normal; }
+            }
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// ---------- главная ----------
+
+export component ClassicHome inherits VerticalLayout {
+    property <string> status-text: Backend.state == 2 ? "Работает в фоновом режиме"
+        : Backend.state == 1 ? "Загрузка..." : Backend.state == 3 ? "Не удалось запустить" : "Выключен";
+    property <string> current: Backend.strategies.length > 0 ? Backend.strategies[Backend.strategy] : "-";
+    alignment: start;
+    padding-top: 36px;
+    padding-left: 32px;
+    padding-right: 32px;
+    spacing: 14px;
+
+    VerticalLayout {
+        spacing: 6px;
+        Text {
+            text: "СТРАТЕГИЯ";
+            horizontal-alignment: center;
+            font-size: 12px;
+            letter-spacing: 1px;
+            color: #ffffff59;
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 12px;
+            Text { text: current; font-size: 18px; color: #e4e4e7; vertical-alignment: center; }
+            Rectangle {
+                width: change.preferred-width + 24px;
+                height: 26px;
+                border-radius: 8px;
+                background: Theme.primary.transparentize(cta.has-hover ? 80% : 90%);
+                border-width: 1px;
+                border-color: Theme.primary.transparentize(80%);
+                animate background { duration: Theme.normal; }
+                change := Text { text: "Сменить"; font-size: 12px; color: Theme.primary.mix(#ffffff, 60%); }
+                cta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Ui.picker = true; }
+                }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        alignment: center;
+        Reactor {
+            state: Backend.state;
+            clicked => { Backend.toggle(); }
+        }
+    }
+    Text {
+        text: status-text;
+        horizontal-alignment: center;
+        font-size: 13px;
+        color: Backend.state == 2 ? Theme.primary.mix(#ffffff, 70%) : #ffffff66;
+    }
+
+    HorizontalLayout {
+        alignment: center;
+        VerticalLayout {
+            width: min(560px, root.width - 64px);
+            spacing: 10px;
+            Separator { label: "ОБХОДЫ"; }
+            HorizontalLayout {
+                spacing: 10px;
+                WideBtn {
+                    title: "DNS Override";
+                    subtitle: "Gemini, ChatGPT, Spotify и т.п.";
+                    icon: "M12 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z M13 2 V9 H20 M16 13 H8 M16 17 H8";
+                    tint: #3b82f6;
+                    clicked => { Backend.hosts-open(); }
+                }
+                WideBtn {
+                    title: "Прокси для TG";
+                    subtitle: "Прокси для Telegram.";
+                    icon-box: 192;
+                    icon: "M23.073 88.132s65.458-26.782 88.16-36.212c8.702-3.772 38.215-15.843 38.215-15.843s13.621-5.28 12.486 7.544c-.379 5.281-3.406 23.764-6.433 43.756-4.54 28.291-9.459 59.221-9.459 59.221s-.756 8.676-7.188 10.185c-6.433 1.509-17.027-5.281-18.919-6.79-1.513-1.132-28.377-18.106-38.214-26.404-2.649-2.263-5.676-6.79.378-12.071 13.621-12.447 29.891-27.913 39.728-37.72 4.54-4.527 9.081-15.089-9.837-2.264-26.864 18.483-53.35 35.835-53.35 35.835s-6.053 3.772-17.404.377c-11.351-3.395-24.594-7.921-24.594-7.921s-9.08-5.659 6.433-11.693Z";
+                    tint: #3b82f6;
+                    clicked => { Ui.page = 2; }
+                }
+            }
+            Separator { label: "ЗАПРЕТ"; }
+            HorizontalLayout {
+                spacing: 10px;
+                WideBtn {
+                    title: "IPSet конфиги";
+                    subtitle: "Обход по IP-адресам.";
+                    icon: "M12 7v14 M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z";
+                    tint: Theme.primary;
+                    clicked => { Ui.page = 1; }
+                }
+                WideBtn {
+                    title: "Конвертатор";
+                    subtitle: "Стратегии .bat → .zapret";
+                    icon: "M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4 M4 6v12c0 1.1.9 2 2 2h14v-4 M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z";
+                    tint: Theme.primary;
+                    clicked => { Backend.import-bat(); }
+                }
+            }
+        }
+    }
+}
+
+// ---------- док сбоку ----------
+
+component DockItem inherits Rectangle {
+    in property <string> icon;
+    in property <int> index;
+    property <bool> active: Ui.page == index;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: active ? #ffffff10 : ta.has-hover ? #ffffff08 : transparent;
+    animate background { duration: Theme.fast; }
+    transform-scale: ta.has-hover && Theme.motion ? 1.12 : 1;
+    animate transform-scale { duration: Theme.normal; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    Icon {
+        name: root.icon;
+        width: 20px;
+        height: 20px;
+        color: root.active ? Theme.primary : #ffffff99;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            Ui.page = root.index;
+            Backend.nav-click(root.index);
+        }
+    }
+}
+
+export component Dock inherits Rectangle {
+    in property <[string]> icons;
+    width: 60px;
+    height: col.preferred-height;
+    border-radius: 16px;
+    background: #0a0514d9;
+    border-width: 1px;
+    border-color: #ffffff1a;
+    col := VerticalLayout {
+        padding: 8px;
+        spacing: 4px;
+        DockItem { icon: icons[0]; index: 0; }
+        DockItem { icon: icons[1]; index: 1; }
+        Rectangle { height: 1px; background: #ffffff1a; }
+        DockItem { icon: icons[2]; index: 2; }
+        DockItem { icon: icons[3]; index: 3; }
+        Rectangle { height: 1px; background: #ffffff1a; }
+        DockItem { icon: icons[4]; index: 4; }
+    }
+}
+
+// ---------- выбор стратегии (как StrategyModal в Zust 2) ----------
+
+export component ClassicStrategyItem inherits Rectangle {
+    in property <string> name;
+    in property <bool> active;
+    callback clicked;
+    height: 48px;
+    border-radius: 12px;
+    background: active ? Theme.primary.transparentize(90%) : ta.has-hover ? #ffffff0f : #ffffff08;
+    border-width: 1px;
+    border-color: active ? Theme.primary.transparentize(70%) : ta.has-hover ? #ffffff0d : transparent;
+    transform-scale: ta.pressed ? 0.99 : 1;
+    animate background, border-color { duration: Theme.normal; }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 14px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: root.active ? Theme.primary : #ffffff33;
+                drop-shadow-blur: root.active ? 8px : 0px;
+                drop-shadow-color: Theme.primary;
+                animate background { duration: Theme.normal; }
+            }
+        }
+        Text {
+            text: root.name;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            font-size: 14px;
+            color: root.active ? #ffffff : ta.has-hover ? #ffffffe6 : #ffffff99;
+            animate color { duration: Theme.normal; }
+        }
+        if root.active: Text {
+            text: "АКТИВНО";
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+            font-size: 11px;
+            letter-spacing: 1px;
+            color: Theme.primary.transparentize(20%);
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component StrategyModal inherits Rectangle {
+    in property <bool> open;
+    property <float> shown: open ? 1 : 0;
+    animate shown { duration: Theme.motion ? 220ms : 0ms; easing: ease-out; }
+    visible: shown > 0.001;
+    background: #00000099;
+    opacity: shown;
+
+    // клик мимо окна закрывает его
+    TouchArea {
+        enabled: root.open;
+        clicked => { Ui.picker = false; }
+    }
+    block := Rectangle {
+        width: min(560px, root.width - 48px);
+        height: min(520px, root.height - 48px);
+        border-radius: 24px;
+        background: #0d0d12;
+        border-width: 1px;
+        border-color: #ffffff0d;
+        clip: true;
+        transform-scale: 0.9 + 0.1 * root.shown;
+        drop-shadow-blur: 40px;
+        drop-shadow-color: #00000080;
+        TouchArea { }  // клики внутри окна не закрывают его
+        VerticalLayout {
+            Rectangle {
+                height: 84px;
+                background: #ffffff05;
+                HorizontalLayout {
+                    padding: 22px;
+                    spacing: 12px;
+                    VerticalLayout {
+                        spacing: 6px;
+                        HorizontalLayout {
+                            spacing: 12px;
+                            alignment: start;
+                            Text { text: "Стратегии"; font-size: 18px; color: #ffffff; vertical-alignment: center; }
+                            Rectangle {
+                                width: cnt.preferred-width + 20px;
+                                height: 22px;
+                                border-radius: 11px;
+                                background: Theme.primary.transparentize(90%);
+                                border-width: 1px;
+                                border-color: Theme.primary.transparentize(80%);
+                                cnt := Text {
+                                    text: Backend.strategies.length + " доступно";
+                                    font-size: 11px;
+                                    color: Theme.primary.mix(#ffffff, 55%);
+                                }
+                            }
+                        }
+                        Text { text: "Стратегии для обхода DPI-блокировок (zapret)."; font-size: 13px; color: #ffffff66; }
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        padding-top: 6px;
+                        Rectangle {
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 4px;
+                            background: Theme.primary;
+                            drop-shadow-blur: 10px;
+                            drop-shadow-color: Theme.primary;
+                        }
+                    }
+                }
+                Rectangle { y: parent.height - 1px; height: 1px; background: #ffffff0d; }
+            }
+            ScrollView {
+                VerticalLayout {
+                    alignment: start;
+                    padding: 16px;
+                    spacing: 8px;
+                    for name[i] in Backend.strategies: ClassicStrategyItem {
+                        name: name;
+                        active: i == Backend.strategy;
+                        clicked => {
+                            Backend.select-strategy(i);
+                            Ui.picker = false;
+                        }
+                    }
+                }
+            }
+            Rectangle {
+                height: 64px;
+                background: #ffffff03;
+                Rectangle { y: 0; height: 1px; background: #ffffff0d; }
+                HorizontalLayout {
+                    alignment: center;
+                    padding: 14px;
+                    spacing: 10px;
+                    Rectangle {
+                        width: 140px;
+                        border-radius: 10px;
+                        background: ta-test.has-hover ? Theme.primary.transparentize(80%) : Theme.primary.transparentize(90%);
+                        border-width: 1px;
+                        border-color: Theme.primary.transparentize(75%);
+                        animate background { duration: Theme.fast; }
+                        Text { text: "Подобрать"; font-size: 14px; color: Theme.primary.mix(#ffffff, 55%); }
+                        ta-test := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                Ui.picker = false;
+                                Backend.test-open();
+                            }
+                        }
+                    }
+                    Rectangle {
+                        width: 140px;
+                        border-radius: 10px;
+                        background: ca.has-hover ? #ffffff14 : #ffffff0a;
+                        border-width: 1px;
+                        border-color: #ffffff14;
+                        animate background { duration: Theme.fast; }
+                        Text { text: "Закрыть"; font-size: 14px; color: #ffffffcc; }
+                        ca := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Ui.picker = false; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

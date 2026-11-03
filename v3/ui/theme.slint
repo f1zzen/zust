@@ -1,0 +1,104 @@
+// Темы: 0 - M3E, 1 - Тёплая, 2 - Моно, 3 - Классика, 4 - Лёгкая.
+
+export global Theme {
+    in-out property <int> style: 3;
+    in-out property <bool> dark: true;
+    in-out property <bool> animations: true;
+    in-out property <color> accent: #8e6cef;
+    // 0 - панель навигации слева, 1 - справа
+    in-out property <int> nav-side: 0;
+    out property <bool> nav-right: nav-side == 1;
+
+    out property <bool> m3e: style == 0;
+    out property <bool> warm: style == 1;
+    out property <bool> mono: style == 2;
+    out property <bool> classic: style == 3;
+    out property <bool> lite: style == 4;
+    out property <bool> motion: animations && !lite;
+
+    out property <duration> fast: motion ? 150ms : 0ms;
+    out property <duration> normal: motion ? 320ms : 0ms;
+    out property <duration> slow: motion ? 600ms : 0ms;
+
+    // ---------- цвета ----------
+    out property <bool> is-dark: dark || classic;
+
+    out property <color> background:
+        warm ? (is-dark ? accent.mix(#262421, 6%) : accent.mix(#f3efe6, 7%))
+        : mono ? (is-dark ? #000000 : #ffffff)
+        : classic ? #05010a
+        : m3e ? (is-dark ? accent.mix(#0e0d12, 6%) : accent.mix(#ebe5f5, 12%))
+        : is-dark ? accent.mix(#100f14, 7%) : accent.mix(#fdfbff, 5%);
+    out property <color> surface:
+        warm ? (is-dark ? accent.mix(#2e2b27, 7%) : accent.mix(#faf8f3, 4%))
+        : mono ? (is-dark ? #121212 : #f3f3f3)
+        : classic ? #ffffff.transparentize(94%)
+        : m3e ? (is-dark ? accent.mix(#1c1a21, 10%) : accent.mix(#fdfbff, 4%))
+        : is-dark ? accent.mix(#1b1921, 10%) : accent.mix(#f3eff9, 10%);
+    out property <color> surface-high:
+        warm ? (is-dark ? accent.mix(#3a3631, 10%) : accent.mix(#e9e3d6, 12%))
+        : mono ? (is-dark ? #1f1f1f : #e7e7e7)
+        : classic ? #ffffff.transparentize(88%)
+        : m3e ? (is-dark ? accent.mix(#2a2730, 15%) : accent.mix(#efe9f8, 12%))
+        : is-dark ? accent.mix(#2a2632, 16%) : accent.mix(#e8e1f1, 16%);
+    out property <color> on-surface:
+        warm ? (is-dark ? accent.mix(#ece6dc, 5%) : accent.mix(#2a2520, 8%))
+        : mono ? (is-dark ? #ffffff : #000000)
+        : is-dark ? #ebe6f0 : #1c1a21;
+    out property <color> on-surface-variant:
+        warm ? (is-dark ? accent.mix(#aea596, 10%) : accent.mix(#6e655b, 10%))
+        : mono ? (is-dark ? #8c8c8c : #6b6b6b)
+        : is-dark ? #b8b1c4 : #57525f;
+    out property <color> outline:
+        warm ? on-surface.transparentize(86%)
+        : is-dark ? #ffffff.transparentize(87%) : #000000.transparentize(87%);
+
+    // в "Моно" главный цвет - чёрный/белый, акцент только для статусов
+    out property <color> primary:
+        mono ? on-surface
+        : m3e ? (is-dark ? accent.mix(#ffffff, 72%) : accent.darker(18%))
+        : is-dark ? accent.brighter(28%) : accent.darker(12%);
+    out property <color> on-primary:
+        mono ? background
+        : warm ? #ffffff
+        : is-dark ? accent.darker(70%) : #ffffff;
+    out property <color> primary-container:
+        mono ? surface-high
+        : warm ? accent.mix(background, 20%)
+        : m3e ? (is-dark ? accent.mix(#221e2b, 40%) : accent.mix(#ffffff, 40%))
+        : is-dark ? accent.mix(#2a2433, 38%) : accent.mix(#ffffff, 24%);
+    out property <color> on-primary-container:
+        mono ? on-surface
+        : is-dark ? accent.mix(#ffffff, 22%) : accent.darker(55%);
+    // M3E: второй и третий тон рядом с акцентом
+    out property <color> tertiary: is-dark ? #ffb3c6.mix(accent, 55%) : #9c3f63.mix(accent, 75%);
+    out property <color> tertiary-container: is-dark ? #6e3550.mix(accent, 55%) : #ffd9e3.mix(accent, 80%);
+    out property <color> on-tertiary-container: is-dark ? #ffd9e3 : #3d0820;
+    out property <color> secondary-container: is-dark ? accent.mix(#2a2633, 28%) : accent.mix(#e4e1f2, 22%);
+
+    out property <color> success: mono ? accent : is-dark ? #86dba0 : #1e7a3c;
+    out property <color> error: is-dark ? #ffb4ab : #ba1a1a;
+
+    // ---------- формы ----------
+    out property <length> radius-s: lite ? 4px : warm ? 8px : mono ? 10px : classic ? 8px : 14px;
+    out property <length> radius-m: lite ? 6px : warm ? 12px : mono ? 14px : classic ? 12px : 22px;
+    out property <length> radius-l: lite ? 8px : warm ? 16px : mono ? 18px : classic ? 18px : 32px;
+    out property <bool> pill-buttons: m3e || classic;
+    out property <length> button-radius: radius-s;
+    out property <length> card-border: warm || classic ? 1px : 0px;
+
+    // ---------- навигация ----------
+    // rail - узкая колонка иконок (M3E, Классика, Лёгкая); sidebar - список с подписями
+    out property <bool> sidebar: warm || mono;
+
+    // ---------- шрифты ----------
+    out property <string> font: mono ? "IBM Plex Mono" : classic || lite ? "Onest" : "Google Sans Flex";
+    out property <string> heading-font: warm ? "Lora" : m3e ? "Google Sans Flex Display" : font;
+    out property <int> heading-weight: warm ? 500 : mono ? 600 : 700;
+    // M3E: текст чуть плотнее обычного, как в интерфейсе Pixel
+    out property <int> body-weight: m3e ? 500 : 400;
+    out property <int> strong-weight: 600;
+    out property <length> display-size: m3e ? 50px : warm ? 36px : mono ? 28px : 32px;
+    // в "Тёплой" и "Моно" заголовки слева, как в тексте; в остальных - по центру
+    out property <bool> left-aligned: warm || mono;
+}

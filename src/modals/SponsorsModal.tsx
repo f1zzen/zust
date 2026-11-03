@@ -1,6 +1,5 @@
-import { ModalBlock, ModalContent, ModalHeader, ModalFooter, InfoHeader } from "@/Buttons";
-import { useModalAnimation } from "./useModalAnimation";
-import { cn } from "@/lib/utils";
+import { Modal } from "./Modal";
+import { ModalContent, ModalHeader, ModalFooter, InfoHeader } from "@/Buttons";
 import { Button } from "@/components/ui/button";
 
 export const SponsorsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
@@ -9,19 +8,8 @@ export const SponsorsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
         { name: "Рустам", amount: "1063₽" }
     ];
 
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
-
-    if (!shouldRender) return null;
-
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={onClose}
-        >
-            <ModalBlock onClick={(e: any) => e.stopPropagation()}>
+        <Modal isOpen={isOpen} onClose={onClose}>
                 <ModalHeader
                     title="Спонсоры на Boosty!"
                     status="💝💝💝"
@@ -69,7 +57,6 @@ export const SponsorsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
                 <ModalFooter>
                     <Button variant="outline" onClick={onClose} size="sm" className="w-full rounded-lg text-[12px] w-20 text-white/80">← Назад</Button>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

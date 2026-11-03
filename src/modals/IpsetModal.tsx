@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
-import { useModalAnimation } from "./useModalAnimation";
+import { Modal } from "./Modal";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { ModalBlock, ModalContent, ModalFooter, ModalHeader, SelectButton } from "@/Buttons";
+import { ModalContent, ModalFooter, ModalHeader, SelectButton } from "@/Buttons";
 import React from "react";
 import { Button } from "@/components/ui/button";
 
@@ -42,14 +42,13 @@ const IpsetItem = ({ label, icon, isActive, onClick, onHover }: any) => (
 );
 
 const DESCRIPTIONS: Record<string, string> = {
-    'Any': 'Использовать стандартный список ipset-all.txt для обхода',
-    'None': 'Не использовать списки фильтрации. ZAPRET будет игнорировать IP-адреса.',
-    'ipset-all.txt': 'Будет использован пользовательский набор из zapret/lists/ipset-all.txt',
+    'Any': 'Правила по IP применяются ко всем адресам. Сильнее обходит, но нагружает систему.',
+    'None': 'Правила по IP отключены — zapret работает только по спискам доменов.',
+    'ipset-all.txt': 'Список адресов из zapret/lists/ipset-all.txt.',
     'custom': 'Фильтрация по вашему индивидуальному списку адресов.'
 };
 
 export const IpsetModal = (p: Props) => {
-    const { shouldRender, isAnimatingOut } = useModalAnimation(p.isOpen);
 
     const hoverTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -67,17 +66,9 @@ export const IpsetModal = (p: Props) => {
             }, 500);
         }
     };
-    if (!shouldRender) return null;
 
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={p.onClose}
-        >
-            <ModalBlock onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+        <Modal isOpen={p.isOpen} onClose={p.onClose}>
                 <ModalHeader
                     title={p.ipsetView === 'main' ? 'Фильтрация по IP' : 'Списки адресов'}
                     description={<span>Настройка обработки трафика ZAPRET</span>}
@@ -115,7 +106,7 @@ export const IpsetModal = (p: Props) => {
                             <div className="flex flex-col gap-2">
                                 <div className="mb-2 flex gap-2 justify-start">
                                     <SelectButton
-                                        onClick={() => invoke('open_ipset_dir')}
+                                        onClick={() => api.openFolder('ipset-configs')}
                                         front="Открыть папку"
                                         back="С конфигами"
                                         className="w-30"
@@ -164,7 +155,6 @@ export const IpsetModal = (p: Props) => {
                         Отмена
                     </button>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

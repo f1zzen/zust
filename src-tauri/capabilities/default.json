@@ -21,15 +21,10 @@
     "opener:default",
     "core:webview:allow-internal-toggle-devtools",
     "dialog:allow-open",
-    "autostart:allow-enable",
-    "autostart:allow-disable",
-    "autostart:allow-is-enabled",
     "dialog:default",
-    "shell:default",
     "core:app:allow-version",
     "core:window:allow-get-all-windows",
     "core:window:allow-set-focus",
-    "process:allow-restart",
     "core:window:allow-is-minimized",
     "core:window:allow-is-visible"
   ]

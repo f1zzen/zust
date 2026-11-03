@@ -1,0 +1,315 @@
+import { Theme } from "theme.slint";
+
+// Иконки - простые SVG-контуры 24×24 (вшиты, ничего не догружается)
+export global Icons {
+    out property <string> home: "M4 11 L12 4 L20 11 M6 9.5 V20 H18 V9.5";
+    out property <string> list: "M8 6 H20 M8 12 H20 M8 18 H20 M4 6 H4.5 M4 12 H4.5 M4 18 H4.5";
+    out property <string> globe: "M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M3 12 H21 M12 3 C8 7.5 8 16.5 12 21 M12 3 C16 7.5 16 16.5 12 21";
+    out property <string> tune: "M4 7 H14 M18 7 H20 M16 5 V9 M4 17 H6 M10 17 H20 M8 15 V19";
+    out property <string> terminal: "M4 5 H20 V19 H4 Z M7 9 L10 12 L7 15 M12 15 H16";
+    out property <string> power: "M12 3 V11 M6.4 6.6 A8 8 0 1 0 17.6 6.6";
+    out property <string> refresh: "M19 12 A7 7 0 1 1 16.9 7 M17 3 V7.5 H12.5";
+    out property <string> next: "M9 6 L15 12 L9 18";
+    out property <string> prev: "M15 6 L9 12 L15 18";
+    out property <string> check: "M5 12.5 L10 17 L19 7";
+    out property <string> plus: "M12 5 V19 M5 12 H19";
+    out property <string> close: "M6 6 L18 18 M18 6 L6 18";
+    out property <string> info: "M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M12 11 V16.5 M12 7.5 V7.6";
+    out property <string> alert: "M12 3.5 L21 19.5 H3 Z M12 10 V14 M12 17 V17.1";
+}
+
+export component Icon inherits Path {
+    in property <string> name;
+    in property <color> color: Theme.on-surface;
+    in property <float> viewbox: 24;
+    commands: name;
+    viewbox-width: viewbox;
+    viewbox-height: viewbox;
+    stroke: color;
+    stroke-width: Theme.mono ? 1.6px : 2px;
+    stroke-line-cap: round;
+    stroke-line-join: round;
+    fill: transparent;
+    width: 22px;
+    height: 22px;
+}
+
+// Кнопка: filled / tonal / tertiary / outline / text
+export component Btn inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <string> kind: "filled";
+    in property <bool> enabled: true;
+    // опасное действие (сброс, удаление): заливка цветом ошибки
+    in property <bool> danger: false;
+    callback clicked;
+
+    height: Theme.m3e ? 48px : 40px;
+    horizontal-stretch: 0;
+    min-width: row.preferred-width + (root.text == "" ? 16px : 36px);
+    border-radius: Theme.pill-buttons ? self.height / 2 : Theme.button-radius;
+    background: !enabled && kind != "text" && kind != "outline" ? Theme.surface-high
+        : kind == "filled" && danger ? Theme.error
+        : kind == "filled" ? Theme.primary
+        : kind == "tonal" ? Theme.primary-container
+        : kind == "tertiary" ? Theme.tertiary-container : transparent;
+    border-width: kind == "outline" ? 1px : 0px;
+    border-color: Theme.outline.transparentize(-60%);
+    opacity: enabled ? 1 : 0.6;
+    property <color> fg: !enabled ? Theme.on-surface-variant
+        : kind == "filled" && danger ? #ffffff
+        : kind == "filled" ? Theme.on-primary
+        : kind == "tonal" ? Theme.on-primary-container
+        : kind == "tertiary" ? Theme.on-tertiary-container
+        : Theme.mono || Theme.warm ? Theme.on-surface : Theme.primary;
+
+    // M3E: при нажатии кнопка "сплющивается" из таблетки в скруглённый квадрат
+    states [
+        pressed when ta.pressed && Theme.m3e && Theme.motion: {
+            border-radius: Theme.radius-s;
+        }
+    ]
+    animate border-radius { duration: Theme.normal; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    transform-scale: ta.pressed && (Theme.mono || Theme.warm) && Theme.motion ? 0.97 : 1;
+    animate transform-scale { duration: Theme.fast; }
+
+    Rectangle {
+        border-radius: parent.border-radius;
+        background: fg;
+        opacity: ta.pressed ? 0.14 : ta.has-hover ? 0.08 : 0;
+        animate opacity { duration: Theme.fast; }
+    }
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: 8px;
+        if root.icon != "": VerticalLayout {
+            alignment: center;
+            Icon { name: root.icon; color: fg; width: 18px; height: 18px; }
+        }
+        if root.text != "": Text {
+            text: root.text;
+            color: fg;
+            font-size: 14px;
+            font-weight: Theme.mono ? 500 : Theme.strong-weight;
+            vertical-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component Card inherits Rectangle {
+    // в M3E содержимое лежит на "плите" цвета surface, поэтому карточки на тон выше
+    background: Theme.m3e ? Theme.surface-high : Theme.surface;
+    border-radius: Theme.radius-l;
+    border-width: Theme.card-border;
+    border-color: Theme.outline;
+}
+
+export component Switch inherits Rectangle {
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
+    width: 52px;
+    height: 32px;
+    border-radius: Theme.lite ? 6px : Theme.mono ? 8px : 16px;
+    background: checked ? Theme.primary : Theme.surface-high;
+    border-width: checked || !Theme.m3e ? 0px : 2px;
+    border-color: Theme.on-surface-variant;
+    opacity: enabled ? 1 : 0.38;
+    animate background { duration: Theme.fast; }
+
+    // M3E: ползунок растёт при включении и "сжимается" при нажатии
+    property <length> size: Theme.m3e
+        ? (ta.pressed ? 28px : root.checked ? 24px : 16px)
+        : 24px;
+    thumb := Rectangle {
+        width: size;
+        height: size;
+        border-radius: Theme.lite ? 4px : Theme.mono ? 6px : size / 2;
+        x: root.checked ? root.width - size - 4px : (Theme.m3e ? (ta.pressed ? 2px : 8px) : 4px);
+        y: (root.height - size) / 2;
+        background: root.checked ? Theme.on-primary : Theme.on-surface-variant;
+        animate x, width, height { duration: Theme.normal; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+        if root.checked && Theme.m3e: Icon {
+            name: Icons.check;
+            color: Theme.primary;
+            width: 16px;
+            height: 16px;
+            stroke-width: 2.5px;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+export component SettingRow inherits Rectangle {
+    in property <string> title;
+    in property <string> hint;
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    in property <bool> divider: false;
+    callback toggled(bool);
+    min-height: 60px;
+    if root.divider: Rectangle {
+        y: 0;
+        x: 16px;
+        width: parent.width - 32px;
+        height: 1px;
+        background: Theme.outline;
+    }
+    HorizontalLayout {
+        padding-left: 18px;
+        padding-right: 16px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 16px;
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            Text { text: root.title; color: Theme.on-surface; font-size: 15px; opacity: root.enabled ? 1 : 0.5; }
+            if root.hint != "": Text {
+                text: root.hint;
+                color: Theme.on-surface-variant;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            Switch {
+                checked <=> root.checked;
+                enabled: root.enabled;
+                toggled(v) => { root.toggled(v); }
+            }
+        }
+    }
+}
+
+// Сегментированный переключатель: равные доли, скругляются только крайние сегменты
+export component Segmented inherits Rectangle {
+    in property <[string]> items;
+    in-out property <int> selected;
+    callback changed(int);
+    property <length> r: Theme.pill-buttons ? self.height / 2 : Theme.button-radius;
+    height: 42px;
+    border-radius: r;
+    border-width: 1px;
+    border-color: Theme.outline.transparentize(-80%);
+    HorizontalLayout {
+        padding: 1px;
+        for item[i] in root.items: Rectangle {
+            horizontal-stretch: 1;
+            min-width: lbl.preferred-width + 28px;
+            border-top-left-radius: i == 0 ? root.r : 0;
+            border-bottom-left-radius: i == 0 ? root.r : 0;
+            border-top-right-radius: i == root.items.length - 1 ? root.r : 0;
+            border-bottom-right-radius: i == root.items.length - 1 ? root.r : 0;
+            background: i == root.selected ? Theme.primary-container
+                : ta.has-hover ? Theme.on-surface.transparentize(94%) : transparent;
+            animate background { duration: Theme.fast; }
+            if i > 0: Rectangle {
+                x: 0;
+                width: 1px;
+                background: Theme.outline.transparentize(-80%);
+            }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 6px;
+                if i == root.selected && !Theme.mono: VerticalLayout {
+                    alignment: center;
+                    Icon { name: Icons.check; width: 16px; height: 16px; color: Theme.on-primary-container; }
+                }
+                lbl := Text {
+                    text: item;
+                    font-size: 13px;
+                    font-weight: i == root.selected ? Theme.strong-weight + 100 : 500;
+                    vertical-alignment: center;
+                    color: i == root.selected ? Theme.on-primary-container : Theme.on-surface;
+                }
+            }
+            ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    root.selected = i;
+                    root.changed(i);
+                }
+            }
+        }
+    }
+}
+
+export component Chip inherits Rectangle {
+    in property <string> text;
+    in property <bool> on;
+    height: 32px;
+    min-width: row.preferred-width + 26px;
+    border-radius: Theme.pill-buttons ? 16px : Theme.radius-s;
+    background: on && Theme.m3e ? Theme.primary-container
+        : Theme.mono || Theme.m3e ? transparent : Theme.surface-high;
+    border-width: Theme.mono || Theme.warm || (Theme.m3e && !on) ? 1px : 0px;
+    border-color: Theme.outline;
+    animate background { duration: Theme.normal; }
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: 8px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 8px;
+                height: 8px;
+                border-radius: Theme.mono ? 0px : 4px;
+                background: root.on ? Theme.success : Theme.on-surface-variant.transparentize(40%);
+            }
+        }
+        Text {
+            text: root.text;
+            color: root.on && Theme.m3e ? Theme.on-primary-container : Theme.on-surface;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// Выбор одного варианта из нескольких (ipset и т.п.): "таблетка", выбранная - залита
+export component Choice inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked;
+    height: 34px;
+    min-width: label.preferred-width + 28px;
+    horizontal-stretch: 0;
+    border-radius: Theme.pill-buttons ? 17px : Theme.radius-s;
+    background: selected ? (Theme.mono ? Theme.on-surface : Theme.primary-container)
+        : ta.has-hover ? Theme.surface-high : (Theme.mono ? transparent : Theme.surface);
+    border-width: selected ? 0px : 1px;
+    border-color: Theme.outline;
+    animate background { duration: Theme.fast; }
+    label := Text {
+        text: root.text;
+        font-size: 13px;
+        font-weight: root.selected ? Theme.strong-weight : 400;
+        color: root.selected ? (Theme.mono ? Theme.background : Theme.on-primary-container) : Theme.on-surface;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component SectionTitle inherits Text {
+    color: Theme.mono || Theme.warm ? Theme.on-surface-variant : Theme.primary;
+    font-size: Theme.mono ? 12px : 13px;
+    font-weight: 700;
+    letter-spacing: Theme.mono ? 1px : 0.3px;
+}

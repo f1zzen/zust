@@ -1,0 +1,25 @@
+{
+  "bundle": {
+    "targets": [
+      "nsis"
+    ],
+    "resources": [
+      "./tor/**/*",
+      "./zapret/**/*",
+      "./frp/**/*"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "sidebarImage": "../assets/installer_header.bmp",
+        "headerImage": "../assets/installer_sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "languages": [
+          "Russian"
+        ]
+      }
+    }
+  }
+}

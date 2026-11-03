@@ -1,10 +1,8 @@
+import { Modal, CloseButton } from "./Modal";
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/lib/api";
 import { listen } from "@tauri-apps/api/event";
-import { useModalAnimation } from "./useModalAnimation";
-import { InfoHeader, ModalBlock, ModalContent, ModalFooter, ModalHeader, SelectButton, WarningHeader } from "@/Buttons";
-import { cn } from "@/lib/utils";
-import React from "react";
+import { InfoHeader, ModalContent, ModalFooter, ModalHeader, SelectButton, WarningHeader } from "@/Buttons";
 import { notify } from "@/Notifications";
 
 interface RepairModalProps {
@@ -13,7 +11,6 @@ interface RepairModalProps {
 
 export const RepairZapret4TorModal = ({ stratName }: RepairModalProps) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
@@ -33,7 +30,7 @@ export const RepairZapret4TorModal = ({ stratName }: RepairModalProps) => {
     const handleConfirm = async () => {
         setIsLoading(true);
         try {
-            await invoke("zapret_4_tor", { stratName: stratName });
+            await api.repairZapretForTor(stratName);
             notify("Zapret успешно настроен для Tor Project", "success");
             setIsOpen(false);
         } catch (e) {
@@ -43,17 +40,8 @@ export const RepairZapret4TorModal = ({ stratName }: RepairModalProps) => {
         }
     };
 
-    if (!shouldRender) return null;
-
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={() => !isLoading && setIsOpen(false)}
-        >
-            <ModalBlock onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+        <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} locked={isLoading}>
                 <ModalHeader
                     title="Внимание!"
                     status="(⌒_⌒;)"
@@ -81,14 +69,8 @@ export const RepairZapret4TorModal = ({ stratName }: RepairModalProps) => {
 
                 <ModalFooter>
                     <SelectButton onClick={handleConfirm} front="Применить" back="Настройки" />
-                    <button
-                        className="rounded-lg bg-white/5 px-4 py-1 font-['Onest'] text-[13px] font-bold text-white/60 transition-all hover:bg-white/10 hover:text-white active:scale-95"
-                        onClick={() => setIsOpen(false)}
-                    >
-                        Закрыть
-                    </button>
+                    <CloseButton onClick={() => setIsOpen(false)}>Закрыть</CloseButton>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

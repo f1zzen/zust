@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { log } from '../Logic';
+import { api, log } from '@/lib/api';
+import { FRP_SERVER } from '@/lib/constants';
 import { ActionButton, DropDownItemStyle, MenuButton } from '../Buttons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/animate-ui/primitives/animate/tooltip';
 import { AnimatePresence, motion } from 'motion/react';
@@ -28,13 +28,14 @@ const MODES = [
     { id: 'direct', label: 'Фоновый', tooltip: 'Работает в фоне, не вмешиваясь в работу приложений.' },
 ];
 
-export const ProxyPage = ({
-    isHotspotActive,
-    setIsHotspotOpen,
-    activeHotspotPort,
-    setIsHotspotActive,
-    setActiveHotspotPort
-}: any) => {
+const TG_LOCAL = "tg://socks?server=127.0.0.1&port=9050";
+
+export const ProxyPage = ({ hotspotPort, setHotspotPort, openHotspot }: {
+    hotspotPort: number | null;
+    setHotspotPort: (port: number | null) => void;
+    openHotspot: () => void;
+}) => {
+    const isHotspotActive = hotspotPort !== null;
     const [status, setStatus] = useState<'stopped' | 'loading' | 'running'>('stopped');
     const [fillLevel, setFillLevel] = useState(0);
     const [lastLog, setLastLog] = useState('Готовимся к запуску!');
@@ -44,16 +45,12 @@ export const ProxyPage = ({
     useEffect(() => {
         const checkInitialStatus = async () => {
             try {
-                const isRunning = await invoke<boolean>('check_tor_status');
-                if (isRunning) {
-                    setStatus('running');
-                    setFillLevel(100);
+                const tor = await api.torStatus();
+                if (tor.running) {
+                    setFillLevel(tor.progress);
+                    setStatus(tor.progress >= 100 ? 'running' : 'loading');
                 }
-                const hotspotPort = await invoke<number | null>('get_hotspot_status');
-                if (hotspotPort) {
-                    setIsHotspotActive(true);
-                    setActiveHotspotPort(hotspotPort);
-                }
+                setHotspotPort(await api.hotspotPort());
             } catch (err) {
                 log("Запуск прокси/точки доступа вызвала ошибку: " + err);
             }
@@ -91,14 +88,13 @@ export const ProxyPage = ({
 
     const handleModeChange = async (newMode: 'vpn' | 'direct') => {
         setMode(newMode);
-        if (status === 'running') {
-            if (newMode === 'vpn') {
-                await invoke('enable_system_proxy');
-                setLastLog('Включён системный режим!');
-            } else {
-                await invoke('disable_system_proxy');
-                setLastLog('Включён фоновый режим!');
-            }
+        if (status !== 'running') return;
+        try {
+            await api.setSystemProxy(newMode === 'vpn');
+            setLastLog(newMode === 'vpn' ? 'Включён системный режим!' : 'Включён фоновый режим!');
+        } catch (e) {
+            notify(String(e), "error");
+            setMode('direct');
         }
     };
 
@@ -113,15 +109,18 @@ export const ProxyPage = ({
             setLastLog('Инициализация...');
 
             try {
-                await invoke('start_tor');
+                await api.startTor();
+                setStatus('running');
+                setFillLevel(100);
                 if (mode === 'vpn') {
-                    await invoke('enable_system_proxy');
+                    await api.setSystemProxy(true).catch((e) => notify(String(e), "error"));
                 }
             } catch (err) {
                 if (err !== 'interrupted') {
-                    setLastLog(`Ошибка: ${err}`);
+                    log(`TOR: ${err}`);
+                    notify(`TOR: ${err}`, "error");
                     setStatus('stopped');
-                    await invoke('stop_tor');
+                    await api.stopTor();
                 }
             } finally {
                 setIsPending(false);
@@ -133,7 +132,7 @@ export const ProxyPage = ({
             setLastLog('Остановка...');
 
             try {
-                await invoke('stop_tor');
+                await api.stopTor();
                 setLastLog('Готов к работе');
             } finally {
                 setTimeout(() => setIsPending(false), 1000);
@@ -308,7 +307,7 @@ export const ProxyPage = ({
 
                                 <DropdownMenuGroup className="space-y-1">
                                     <DropdownMenuItem
-                                        onSelect={async () => await invoke("open_link", { url: "tg://socks?server=127.0.0.1&port=9050" })}
+                                        onSelect={() => api.openLink(TG_LOCAL)}
                                         className={DropDownItemStyle}
                                     >
                                         Открыть в ТГ
@@ -316,7 +315,8 @@ export const ProxyPage = ({
 
                                     <DropdownMenuItem
                                         onSelect={async () => {
-                                            await navigator.clipboard.writeText("tg://socks?server=127.0.0.1&port=9050");
+                                            await navigator.clipboard.writeText(TG_LOCAL);
+                                            notify("Ссылка скопирована");
                                         }}
                                         className={DropDownItemStyle}
                                     >
@@ -339,7 +339,7 @@ export const ProxyPage = ({
                                 title="Точка доступа"
                                 subtitle="Разрешить подключения из локальной сети."
                                 icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.54 15H17a2 2 0 0 0-2 2v4.54" /><path d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17" /><path d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05" /><circle cx="12" cy="12" r="10" /></svg>}
-                                onClick={() => setIsHotspotOpen(true)}
+                                onClick={openHotspot}
                                 variant="proxy"
                             />
                         ) : (
@@ -359,7 +359,7 @@ export const ProxyPage = ({
                                     <DropdownMenuGroup className="space-y-1">
                                         <DropdownMenuItem
                                             onSelect={async () => {
-                                                await navigator.clipboard.writeText(`https://t.me/socks?server=frp.freefrp.net&port=${activeHotspotPort}`);
+                                                await navigator.clipboard.writeText(`https://t.me/socks?server=${FRP_SERVER}&port=${hotspotPort}`);
                                                 notify("Ссылка на точку скопирована!");
                                             }}
                                             className={DropDownItemStyle}
@@ -368,7 +368,7 @@ export const ProxyPage = ({
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             onSelect={async () => {
-                                                await navigator.clipboard.writeText(activeHotspotPort?.toString() || "");
+                                                await navigator.clipboard.writeText(String(hotspotPort ?? ""));
                                                 notify(`Порт точки доступа скопирован`);
                                             }}
                                             className={DropDownItemStyle}
@@ -377,7 +377,7 @@ export const ProxyPage = ({
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             onSelect={async () => {
-                                                await invoke("open_link", { url: `tg://socks?server=frp.freefrp.net&port=${activeHotspotPort}` });
+                                                await api.openLink(`tg://socks?server=${FRP_SERVER}&port=${hotspotPort}`);
                                                 notify("Открываем телеграмм..");
                                             }}
                                             className={DropDownItemStyle}
@@ -389,8 +389,8 @@ export const ProxyPage = ({
                                     <DropdownMenuItem
                                         onSelect={async () => {
                                             try {
-                                                await invoke("stop_hotspot");
-                                                setIsHotspotActive(false);
+                                                await api.stopHotspot();
+                                                setHotspotPort(null);
                                                 notify("Точка доступа остановлена");
                                             } catch (err) {
                                                 notify(`Ошибка остановки: ${err}`);

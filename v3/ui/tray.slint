@@ -1,0 +1,34 @@
+// Трей: у него нет окна, поэтому состояние приходит из Rust.
+
+export component ZustTray inherits SystemTrayIcon {
+    in property <bool> zapret-on;
+    in property <bool> tor-on;
+    in property <string> strategy;
+    callback open();
+    callback toggle-zapret();
+    callback toggle-tor();
+    callback quit();
+
+    // строка меню macOS: только знак, без квадрата и подписи
+    in property <bool> mac;
+
+    icon: mac ? @image-url("tray-mac.png") : @image-url("tray.png");
+    title: mac ? "" : "Z.UST";
+    tooltip: zapret-on ? "Z.UST - обход работает (" + strategy + ")" : "Z.UST - обход выключен";
+    clicked => { open(); }
+
+    Menu {
+        MenuItem { title: "Открыть Z.UST"; activated => { root.open(); } }
+        MenuSeparator { }
+        MenuItem {
+            title: root.zapret-on ? "Выключить zapret" : "Включить zapret";
+            activated => { root.toggle-zapret(); }
+        }
+        MenuItem {
+            title: root.tor-on ? "Выключить TOR" : "Включить TOR";
+            activated => { root.toggle-tor(); }
+        }
+        MenuSeparator { }
+        MenuItem { title: "Выход"; activated => { root.quit(); } }
+    }
+}

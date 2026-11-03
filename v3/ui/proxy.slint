@@ -1,0 +1,238 @@
+// Страница "TOR и прокси": TOR (фоновый / системный), Telegram, точка доступа.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icons, Icon, Btn, Card, Switch, Segmented, SectionTitle } from "components.slint";
+import { Backend, ProxyItem } from "globals.slint";
+import { PowerButton } from "power.slint";
+import { Separator } from "classic.slint";
+
+component Section inherits VerticalLayout {
+    in property <string> title;
+    if Theme.classic: Separator { label: root.title.to-uppercase(); }
+    if !Theme.classic: SectionTitle { text: Theme.mono ? root.title.to-uppercase() : root.title; }
+}
+
+component ProxyRow inherits Rectangle {
+    in property <ProxyItem> item;
+    in property <bool> divider;
+    callback connect;
+    height: 52px;
+    background: ta.has-hover ? Theme.on-surface.transparentize(95%) : transparent;
+    animate background { duration: Theme.fast; }
+    if root.divider: Rectangle { y: 0; x: 16px; width: parent.width - 32px; height: 1px; background: Theme.outline; }
+    property <color> ping-color: item.ping < 0 ? Theme.error
+        : item.ping == 0 ? Theme.on-surface-variant
+        : item.ping < 150 ? Theme.success
+        : item.ping < 400 ? #e0b04a : Theme.error;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 10px;
+        spacing: 12px;
+        Text { text: root.item.country; vertical-alignment: center; font-size: 13px; color: Theme.on-surface-variant; width: 28px; }
+        Text {
+            text: root.item.address;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            font-size: 14px;
+            color: Theme.on-surface;
+            overflow: elide;
+        }
+        Text {
+            text: root.item.ping < 0 ? "нет ответа" : root.item.ping == 0 ? "-" : root.item.ping + " мс";
+            vertical-alignment: center;
+            horizontal-alignment: right;
+            width: 84px;
+            font-size: 13px;
+            color: root.ping-color;
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            Btn {
+                text: Theme.mono ? "подключить" : "Подключить";
+                kind: "tonal";
+                height: 34px;
+                clicked => { root.connect(); }
+            }
+        }
+    }
+    ta := TouchArea { }
+}
+
+export component ProxyPage inherits ScrollView {
+    property <bool> left: Theme.left-aligned;
+    property <string> phrase:
+        Backend.tor-progress < 30 ? "Подготовка…"
+        : Backend.tor-progress < 55 ? "Ищем мосты…"
+        : Backend.tor-progress < 80 ? "Обходим ограничения…" : "Почти готово…";
+
+    VerticalLayout {
+        alignment: start;
+        padding: 28px;
+        padding-top: Theme.classic ? 36px : 28px;
+        spacing: 14px;
+
+        // ---- заголовок ----
+        if Theme.classic: VerticalLayout {
+            spacing: 6px;
+            Text { text: "СОЕДИНЕНИЕ"; horizontal-alignment: center; font-size: 12px; letter-spacing: 1px; color: #ffffff59; }
+            Text { text: "Прокси TOR"; horizontal-alignment: center; font-size: 18px; color: #e4e4e7; }
+        }
+        if !Theme.classic: VerticalLayout {
+            spacing: 4px;
+            Text {
+                text: Theme.mono ? "tor и прокси" : "TOR и прокси";
+                font-family: Theme.heading-font;
+                font-size: Theme.warm ? 30px : 26px;
+                font-weight: Theme.heading-weight;
+                color: Theme.on-surface;
+                horizontal-alignment: root.left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
+            }
+            Text {
+                text: "Для Telegram и сайтов, которые zapret не открывает. Работает через сеть TOR.";
+                font-size: 13px;
+                color: Theme.on-surface-variant;
+                wrap: word-wrap;
+                horizontal-alignment: root.left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
+            }
+        }
+
+        // ---- режим ----
+        HorizontalLayout {
+            alignment: root.left ? LayoutAlignment.start : LayoutAlignment.center;
+            Segmented {
+                width: 300px;
+                items: ["Фоновый", "Системный"];
+                selected <=> Backend.tor-mode;
+                changed(i) => { Backend.tor-mode-changed(i); }
+            }
+        }
+        Text {
+            text: Backend.tor-mode == 0
+                ? "Только для приложений, где указан прокси 127.0.0.1:9050 (например, Telegram)."
+                : "Весь системный трафик пойдёт через TOR. Медленнее, но работает везде.";
+            font-size: 12px;
+            color: Theme.on-surface-variant;
+            wrap: word-wrap;
+            horizontal-alignment: root.left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
+        }
+
+        // ---- кнопка TOR ----
+        PowerButton {
+            state: Backend.tor-state;
+            progress: Backend.tor-progress;
+            align: root.left ? LayoutAlignment.start : LayoutAlignment.center;
+            clicked => { Backend.tor-toggle(); }
+        }
+
+        // ---- статус и прогресс ----
+        HorizontalLayout {
+            alignment: root.left ? LayoutAlignment.start : LayoutAlignment.center;
+            VerticalLayout {
+                width: 360px;
+                spacing: 8px;
+                Text {
+                    text: Backend.tor-state == 2 ? (Theme.mono ? "соединение активно" : "Соединение активно")
+                        : Backend.tor-state == 1 ? root.phrase + "  " + Backend.tor-progress + "%"
+                        : (Theme.mono ? "система готова" : "Система готова");
+                    horizontal-alignment: root.left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: Backend.tor-state == 0 ? Theme.on-surface-variant : Theme.primary;
+                }
+                if Backend.tor-state == 1 && !Theme.classic: Rectangle {
+                    height: 4px;
+                    border-radius: 2px;
+                    background: Theme.surface-high;
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * Backend.tor-progress / 100;
+                        border-radius: 2px;
+                        background: Theme.primary;
+                        animate width { duration: Theme.normal; easing: ease-out; }
+                    }
+                }
+                Text {
+                    text: Backend.tor-log;
+                    horizontal-alignment: root.left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
+                    font-size: 12px;
+                    color: Theme.on-surface-variant;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // ---- Telegram ----
+        Section { title: "Telegram"; }
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: start;
+            Btn {
+                text: Theme.mono ? "подключить telegram к tor" : "Подключить Telegram к TOR";
+                icon: Icons.next;
+                kind: "filled";
+                enabled: Backend.tor-state == 2;
+                clicked => { Backend.tg-connect-local(); }
+            }
+            Btn {
+                text: Backend.proxies-checking ? (Theme.mono ? "проверка…" : "Проверка…") : (Theme.mono ? "проверить пинг" : "Проверить пинг");
+                icon: Icons.refresh;
+                kind: "outline";
+                enabled: !Backend.proxies-checking;
+                clicked => { Backend.proxies-check(); }
+            }
+        }
+        Card {
+            VerticalLayout {
+                padding-top: 6px;
+                padding-bottom: 6px;
+                Text {
+                    text: Theme.mono ? "прокси для telegram (mtproto) - без tor" : "Прокси для Telegram (MTProto) - работают и без TOR";
+                    font-size: 12px;
+                    color: Theme.on-surface-variant;
+                    x: 16px;
+                    height: 28px;
+                    vertical-alignment: center;
+                }
+                for p[i] in Backend.proxies: ProxyRow {
+                    item: p;
+                    divider: i > 0;
+                    connect => { Backend.proxy-connect(i); }
+                }
+            }
+        }
+
+        // ---- точка доступа ----
+        Section { title: "Точка доступа"; }
+        Card {
+            HorizontalLayout {
+                padding: 18px;
+                spacing: 16px;
+                VerticalLayout {
+                    spacing: 4px;
+                    alignment: center;
+                    Text { text: "Раздать TOR друзьям"; font-size: 15px; color: Theme.on-surface; }
+                    Text {
+                        text: Backend.hotspot
+                            ? "Адрес для подключения: " + Backend.hotspot-address
+                            : "Друзья смогут пользоваться вашим TOR через frp.freefrp.net. Нужен запущенный TOR.";
+                        font-size: 12px;
+                        color: Backend.hotspot ? Theme.primary : Theme.on-surface-variant;
+                        wrap: word-wrap;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Switch {
+                        checked <=> Backend.hotspot;
+                        enabled: Backend.tor-state == 2 || Backend.hotspot;
+                        toggled => { Backend.hotspot-toggle(); }
+                    }
+                }
+            }
+        }
+        // место под док в "Классике"
+        if Theme.classic: Rectangle { height: 8px; }
+    }
+}

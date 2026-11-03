@@ -1,0 +1,186 @@
+
+// Прокси для Telegram из списка (страна, адрес, пинг в мс; 0 - не проверен, -1 - нет ответа)
+export struct ProxyItem {
+    country: string,
+    address: string,
+    ping: int,
+}
+
+// Категория hosts (DNS Override): название, сколько записей, выбрана ли
+export struct HostsCategory {
+    name: string,
+    count: int,
+    selected: bool,
+}
+
+// Строка в окне ссылки zust://: что именно будет сделано
+export struct LinkRow {
+    label: string,
+    value: string,
+    // false - файл не найден (применить нельзя)
+    ok: bool,
+}
+
+// Спонсор или участник сообщества: имя и подпись (сумма, роль)
+export struct Person {
+    name: string,
+    note: string,
+}
+
+// Всплывающее уведомление. kind: 0 - сведение, 1 - успех, 2 - ошибка
+export struct Toast {
+    id: int,
+    text: string,
+    kind: int,
+    // false - ещё не показано (появляется плавно) или уже уходит
+    shown: bool,
+}
+
+export struct TestItem {
+    name: string,
+    score: string,
+    detail: string,
+    best: bool,
+    failed: bool,
+}
+
+export global Backend {
+    // 0 - выключен, 1 - запуск, 2 - работает, 3 - ошибка
+    in property <int> state: 0;
+    in property <[string]> strategies;
+    in-out property <int> strategy: 0;
+    in property <bool> tor: false;
+    in property <bool> hosts: true;
+    in property <[string]> logs;
+
+    in-out property <bool> autostart: false;
+    in-out property <bool> tray: true;
+    in-out property <bool> notifications: true;
+    in property <[Toast]> toasts;
+    callback toast-close(int);
+    in-out property <bool> game-filter: false;
+    // 0 - авто, 1 - GPU, 2 - без GPU (применяется после перезапуска)
+    in-out property <int> renderer-choice: 0;
+
+    // ---- TOR и прокси ----
+    // 0 - выключен, 1 - подключение, 2 - работает
+    in property <int> tor-state: 0;
+    in property <int> tor-progress: 0;
+    in property <string> tor-log: "Готов к работе";
+    // 0 - фоновый (только SOCKS 127.0.0.1:9050), 1 - системный прокси
+    in-out property <int> tor-mode: 0;
+    in property <[ProxyItem]> proxies;
+    in property <bool> proxies-checking: false;
+    in-out property <bool> hotspot: false;
+    in property <string> hotspot-address;
+    // сколько работает zapret: "2 мин", "1 ч 5 мин"
+    in property <string> uptime;
+
+    // ---- стратегии: ipset, обновления, импорт ----
+    // варианты фильтра по IP: "Только домены", "Все адреса", ipset-all, свои списки
+    in property <[string]> ipsets;
+    in-out property <int> ipset: 0;
+    // стратегии, для которых в репозитории есть новая версия (или новые стратегии)
+    in property <[string]> updates;
+    in property <bool> updating: false;
+
+    // ---- тест стратегий ----
+    in property <bool> test-running: false;
+    in property <string> test-status;
+    in property <float> test-progress: 0;
+    in property <[TestItem]> test-rows;
+    callback test-open();
+    callback test-start();
+    callback test-stop();
+    callback test-apply(string);
+
+    // ---- ярлык в меню приложений (Linux) ----
+    in property <bool> launcher-supported: false;
+    in-out property <bool> launcher-installed: false;
+    in property <bool> launcher-offer: false;
+
+    // ---- hosts (DNS Override) ----
+    in property <[HostsCategory]> hosts-categories;
+    in property <string> hosts-date;
+    in property <bool> hosts-loading: false;
+    in property <bool> hosts-saving: false;
+    in property <string> hosts-error;
+    // Comss.one DNS как системный DNS
+    in-out property <bool> comss: false;
+    in property <bool> comss-busy: false;
+    callback comss-toggle();
+
+    // ---- окно ссылки zust:// ----
+    in property <string> link-title;
+    in property <string> link-text;
+    in property <string> link-confirm-text: "Применить";
+    in property <[LinkRow]> link-rows;
+    // опасное действие (сброс) - кнопка подтверждения красная
+    in property <bool> link-danger: false;
+    in property <bool> link-busy: false;
+
+    in property <string> renderer;
+    in property <string> memory;
+    in property <string> version;
+    // новая версия на GitHub ("3.0.1"), пусто - обновлений нет
+    in property <string> update-version;
+    callback update-open();
+
+    callback toggle();
+    callback restart();
+    callback select-strategy(int);
+    callback settings-changed();
+    callback tor-toggle();
+    callback tor-mode-changed(int);
+    callback tg-connect-local();
+    callback proxy-connect(int);
+    callback proxies-check();
+    callback hotspot-toggle();
+    callback select-ipset(int);
+    callback open-folder(string);
+    callback apply-updates();
+    callback import-bat();
+    callback launcher-set(bool);
+    callback launcher-dismiss();
+    // ---- свои списки zapret ----
+    in property <[string]> lists-entries;
+    in-out property <int> lists-tab: 0;
+    in property <string> lists-error;
+    in property <bool> lists-changed: false;
+    callback lists-open();
+    callback lists-select(int);
+    callback lists-add(string) -> bool;
+    callback lists-remove(int);
+    callback lists-restart();
+
+    // новости, спонсоры, сообщество (окно 4)
+    in property <string> news-title;
+    in property <string> news-body;
+    in property <[Person]> sponsors;
+    in property <[Person]> community;
+    in-out property <int> about-tab: 0;
+    callback about-open(int);
+    callback open-link(string);
+
+    callback hosts-open();
+    callback hosts-toggle(int);
+    callback hosts-apply();
+    callback flush-dns();
+    callback link-confirm();
+    callback dialog-close();
+    // нажатие на пункт меню (для пасхалки) и звук скримера
+    callback nav-click(int);
+    callback scare-sound();
+}
+
+// Текущая страница: 0 - главная, 1 - стратегии, 2 - прокси, 3 - настройки, 4 - логи
+export global Ui {
+    in-out property <int> page: 0;
+    // окно выбора стратегии (в "Классике", как в Zust 2)
+    in-out property <bool> picker: false;
+    // открытое окно: 0 - нет, 1 - hosts (DNS Override), 2 - ссылка zust://, 3 - свои списки,
+    // 4 - новости, спонсоры, сообщество, 5 - тест стратегий
+    in-out property <int> dialog: 0;
+    // скример вместо знака Z.UST: 0 - нет, 1..12 - картинка
+    in-out property <int> scare: 0;
+}

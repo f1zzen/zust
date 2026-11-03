@@ -1,81 +1,82 @@
 import { CommunityButton, CreditCard, Header, SponsorsButton } from '@/Buttons';
-import { CodeTabs } from '@/components/animate-ui/components/animate/code-tabs';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
+import { api, type AppInfo } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { invoke } from '@tauri-apps/api/core';
+import { notify } from '@/Notifications';
+import type { ModalId } from '@/Logic';
 
-export const ExtraPage = ({
-    logs,
-    torLogs,
-    prefs
-}: any) => {
-    const CODES = getAllLogs(logs, torLogs);
+const OS_NAMES: Record<string, string> = { windows: 'Windows', linux: 'Linux' };
+
+/** Карточка версии: по клику копирует строку для баг-репорта. */
+const VersionCard = ({ info, updateAvailable }: { info: AppInfo | null; updateAvailable: string | null }) => {
+    if (!info) return null;
+    const line = `Zust v${info.version} (${info.commit}, ${info.buildDate}) · ${OS_NAMES[info.os] ?? info.os} ${info.arch}`;
     return (
-        <div className="content credits-container">
-            <Header title="Дополнительно" />
-            <div className="credits-main-scroll">
-                <div className="credits-section">
-                    <h2 className="section-title">Благодарности</h2>
-                    <SponsorsButton onClick={() => prefs.setIsSponsorsModalOpen(true)} />
-                    <div className="grid grid-cols-2 gap-3 w-full">
-                        <CreditCard title="zapret" author="bol-van" link="https://github.com/bol-van/zapret" />
-                        <CreditCard title="zapret-youtube-discord" author="Flowseal" link="https://github.com/flowseal/zapret-discord-youtube" />
-                        <CreditCard title="shadcn/ui" author="shadcn" link="https://ui.shadcn.com/" />
-                        <CreditCard title="SmoothUI" author="Smooth Code" link="https://smoothui.dev/" />
-                        <CreditCard title="MagicUI" author="Dillion" link="https://magicui.design/" />
-                        <CreditCard title="AnimateUI" author="Skyleen" link="https://animate-ui.com/" />
-                    </div>
-                    <CommunityButton onClick={() => prefs.setIsCommunityModalOpen(true)} />
-                    <p className="friends-text">...и моим друзьям 🥹</p>
-                </div>
-                <InteractiveHoverButton
-                    className={cn(
-                        "bg-[#0a0515] border-purple-900/50 text-purple-400 transition-all duration-300",
-                        "[&>div_div]:bg-purple-500!",
-                        "[&>div:last-child]:text-[#0a0515]!",
-                        "group-hover:text-transparent!"
-                    )}
-                    onClick={async () => {
-                        await invoke("open_link", { url: "https://t.me/zdotust" });
+        <div
+            onClick={async () => {
+                await navigator.clipboard.writeText(line);
+                notify("Версия скопирована", "success");
+            }}
+            className="group w-full cursor-pointer rounded-xl border border-white/5 bg-[#0a0514]/60 p-[14px_18px] transition-all hover:border-purple-500/20 active:scale-[0.98]"
+        >
+            <div className="flex items-baseline justify-between gap-3">
+                <span className="font-['Onest'] text-[15px] font-bold text-white/90">Zust v{info.version}</span>
+                <span className="text-[11px] text-white/30 group-hover:text-purple-400 transition-colors">копировать</span>
+            </div>
+            <div className="mt-1 font-mono text-[11px] text-white/40">
+                {info.commit} · {info.buildDate} · {OS_NAMES[info.os] ?? info.os} {info.arch}{info.debug ? ' · debug' : ''}
+            </div>
+            {updateAvailable && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        api.openLink("https://github.com/f1zzen/zust/releases/latest");
                     }}
+                    className="mt-2 text-[12px] font-bold text-blue-300 hover:underline"
                 >
-                    Подписаться на проект
-                </InteractiveHoverButton>
-            </div>
-            <div className={cn(
-                "relative mt-8 group mx-auto max-w-3xl w-full logs-container",
-                "**:[[role=tablist]]:after:content-none!",
-                "**:[[role=tablist]]:after:hidden",
-                "**:[[role=tablist]]:bg-[#0a0515]!",
-                "**:[[role=tablist]]:border-purple-900/50!",
-                "**:[[role=tab][data-state=active]]:text-purple-400!",
-                "**:[button:not([role=tab])]:bg-transparent!",
-                "**:[button:not([role=tab]):hover]:text-purple-300!")}>
-                <div className="relative flex flex-col rounded-xl border border-purple-900/50 bg-[#05010a] overflow-hidden">
-                    <div className="overflow-y-auto custom-scrollbar">
-                        <CodeTabs
-                            lang="log"
-                            codes={CODES}
-                            themes={{
-                                light: 'one-dark-pro',
-                                dark: 'tokyo-night'
-                            }}
-                            className="!bg-transparent !border-none"
-                        />
-                    </div>
-                </div>
-            </div>
+                    ✨ Доступна v{updateAvailable} — скачать
+                </button>
+            )}
         </div>
-    )
+    );
 };
 
-function getAllLogs(logs: any, torLogs: any) {
-    let zustText = [...logs].reverse().join('\n');
-    const torText = [...torLogs].reverse().join('\n');
-    zustText = zustText.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+export const ExtraPage = ({ appInfo, updateAvailable, openModal }: {
+    appInfo: AppInfo | null;
+    updateAvailable: string | null;
+    openModal: (id: ModalId) => void;
+}) => (
+    <div className="content credits-container">
+        <Header title="Дополнительно" />
+        <div className="credits-main-scroll">
+            <div className="credits-section">
+                <h2 className="section-title">О программе</h2>
+                <VersionCard info={appInfo} updateAvailable={updateAvailable} />
 
-    return {
-        Zust: zustText,
-        Tor: torText,
-    };
-}
+                <h2 className="section-title" style={{ marginTop: '12px' }}>Благодарности</h2>
+                <SponsorsButton onClick={() => openModal('sponsors')} />
+                <div className="grid grid-cols-2 gap-3 w-full">
+                    <CreditCard title="zapret" author="bol-van" link="https://github.com/bol-van/zapret" />
+                    <CreditCard title="zapret-discord-youtube" author="Flowseal" link="https://github.com/flowseal/zapret-discord-youtube" />
+                    <CreditCard title="shadcn/ui" author="shadcn" link="https://ui.shadcn.com/" />
+                    <CreditCard title="SmoothUI" author="Smooth Code" link="https://smoothui.dev/" />
+                    <CreditCard title="MagicUI" author="Dillion" link="https://magicui.design/" />
+                    <CreditCard title="AnimateUI" author="Skyleen" link="https://animate-ui.com/" />
+                </div>
+                <CommunityButton onClick={() => openModal('community')} />
+                <p className="friends-text">...и моим друзьям 🥹</p>
+            </div>
+            <InteractiveHoverButton
+                className={cn(
+                    "bg-[#0a0515] border-purple-900/50 text-purple-400 transition-all duration-300",
+                    "[&>div_div]:bg-purple-500!",
+                    "[&>div:last-child]:text-[#0a0515]!",
+                    "group-hover:text-transparent!"
+                )}
+                onClick={() => api.openLink("https://t.me/zdotust")}
+            >
+                Подписаться на проект
+            </InteractiveHoverButton>
+        </div>
+    </div>
+);

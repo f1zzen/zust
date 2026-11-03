@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { invoke } from "@tauri-apps/api/core";
-import { log } from '../Logic'
+import { api, log, type Settings } from '@/lib/api';
 import { notify } from '../Notifications'
 import { Header } from '@/Buttons';
+import type { Zapret } from '@/ZapretUtils';
 
 interface SettingItemProps {
     label: string;
@@ -10,17 +10,6 @@ interface SettingItemProps {
     emoji: string;
     enabled: boolean;
     onToggle: () => void;
-}
-
-interface ISettings {
-    notifications: boolean;
-    autoStart: boolean;
-    minimizeToTray: boolean;
-    animationDisabled: boolean;
-    gameFilter: boolean;
-    refreshBridges: boolean;
-    autoTor: boolean;
-    [key: string]: any;
 }
 
 const SettingItem = ({ label, description, emoji, enabled, onToggle }: SettingItemProps) => (
@@ -38,13 +27,36 @@ const SettingItem = ({ label, description, emoji, enabled, onToggle }: SettingIt
     </div>
 );
 
-export const SettingsPage = () => {
-    const [settings, setSettings] = useState<ISettings | null>(null);
+const SECTIONS: { title: string; items: { key: keyof Settings; label: string; description: string; emoji: string }[] }[] = [
+    {
+        title: 'Основные',
+        items: [
+            { key: 'autoStart', label: 'Автозапуск', description: 'Запускать Zust (свёрнутым в трей) при входе в систему.', emoji: '🚀' },
+            { key: 'notifications', label: 'Уведомления', description: 'Показывать уведомления об ошибках и успехах.', emoji: '🔔' },
+            { key: 'minimizeToTray', label: 'Сворачивать в трей', description: 'Крестик прячет окно в трей. Если выключено — Zust закрывается (zapret продолжит работать).', emoji: '📥' },
+        ],
+    },
+    {
+        title: 'Zapret',
+        items: [
+            { key: 'gameFilter', label: 'GameFilter', description: 'Обход для игр и других сервисов на портах выше 1023 (TCP и UDP).', emoji: '🕹️' },
+        ],
+    },
+    {
+        title: 'TOR',
+        items: [
+            { key: 'refreshBridges', label: 'Обновлять мосты', description: 'Запрашивать новые мосты при каждом подключении к TOR.', emoji: '🌉' },
+            { key: 'autoTor', label: 'TOR при запуске', description: 'Подключаться к TOR сразу после запуска Zust (включает автозапуск).', emoji: '🤖' },
+        ],
+    },
+];
+
+export const SettingsPage = ({ zapret }: { zapret: Zapret }) => {
+    const [settings, setSettings] = useState<Settings | null>(null);
 
     const fetchData = async () => {
         try {
-            const res = await invoke<ISettings>('load_settings');
-            setSettings(res);
+            setSettings(await api.loadSettings());
         } catch (e) {
             log("Ошибка загрузки настроек: " + e);
         }
@@ -56,52 +68,29 @@ export const SettingsPage = () => {
         return () => window.removeEventListener('settings-changed', fetchData);
     }, []);
 
-    const toggle = async (key: string) => {
+    const toggle = async (key: keyof Settings) => {
         if (!settings) return;
-
-        const newValue = !settings[key];
-        const newSettings = { ...settings, [key]: newValue };
-
-        if (key === 'autoTor' && newValue === true) {
-            newSettings.autoStart = true;
-        }
-
-        setSettings(newSettings);
+        const value = !settings[key];
+        const next: Settings = { ...settings, [key]: value };
+        if (key === 'autoTor' && value) next.autoStart = true;
+        setSettings(next);
 
         try {
-            await invoke('save_settings', { settings: newSettings });
+            // автозапуск бэкенд применяет сам при сохранении
+            await api.saveSettings(next);
             window.dispatchEvent(new Event('settings-changed'));
 
-            if (key === 'autoStart' || (key === 'autoTor' && newValue === true)) {
-                await invoke('manage_autostart', { enabled: newSettings.autoStart });
-                notify(newSettings.autoStart ? "Автозагрузка включена" : "Автозагрузка выключена");
+            if (next.autoStart !== settings.autoStart) {
+                notify(next.autoStart ? "Автозапуск включён" : "Автозапуск выключен");
             }
-
-            switch (key) {
-                case 'gameFilter':
-                    await invoke('game_filter_toggle', { enabled: newValue });
-                    notify("Обновление конфигурации...");
-
-                    const currentStrat = await invoke<string>('get_strategy');
-                    if (currentStrat !== "None") {
-                        await invoke('stop_service');
-                        const list = await invoke<string[]>('get_list_strategies');
-                        const idx = list.indexOf(currentStrat) + 1;
-                        if (idx > 0) {
-                            await invoke('start_service', {
-                                args: {
-                                    index: idx,
-                                    ipsetConfig: localStorage.getItem('selected_ipset') || "ipset-all.txt"
-                                }
-                            });
-                        }
-                    }
-                    notify("Сборка перезапущена!", "success");
-                    break;
+            // GameFilter меняет аргументы zapret — перезапускаем, если он работает
+            if (key === 'gameFilter' && zapret.status === 'running') {
+                await zapret.start();
+                notify("zapret перезапущен с новым GameFilter", "success");
             }
         } catch (err) {
-            notify("Ошибка сохранения", "error");
-            log("" + err);
+            notify(`Ошибка сохранения: ${err}`, "error");
+            log("Ошибка сохранения настроек: " + err);
             fetchData();
         }
     };
@@ -112,53 +101,21 @@ export const SettingsPage = () => {
         <div className="content">
             <Header title="Настройки" />
             <div className="credits-section">
-                <h2 className="section-title">Основные</h2>
-                <SettingItem
-                    label="Авто-запуск"
-                    description="Автоматический запуск при включении компьютера."
-                    emoji="🚀"
-                    enabled={settings.autoStart}
-                    onToggle={() => toggle('autoStart')}
-                />
-                <SettingItem
-                    label="Уведомления"
-                    description="Уведомлять о ошибках и успехах."
-                    emoji="🔔"
-                    enabled={settings.notifications}
-                    onToggle={() => toggle('notifications')}
-                />
-
-                <h2 className="section-title" style={{ marginTop: '20px' }}>Интерфейс</h2>
-                <SettingItem
-                    label="Сворачивать в трей"
-                    description="Закрытие окна не выключает службу"
-                    emoji="📥"
-                    enabled={settings.minimizeToTray}
-                    onToggle={() => toggle('minimizeToTray')}
-                />
-                <h2 className="section-title" style={{ marginTop: '20px' }}>Zapret</h2>
-                <SettingItem
-                    label="GameFilter"
-                    description='"Переключение режима обхода для игр (и других сервисов, использующих UDP и TCP на портах выше 1023)."'
-                    emoji="🕹️"
-                    enabled={settings.gameFilter}
-                    onToggle={() => toggle('gameFilter')}
-                />
-                <h2 className="section-title" style={{ marginTop: '20px' }}>TOR</h2>
-                <SettingItem
-                    label="Обновление мостов"
-                    description='Поиск новых мостов для файла torrc при каждом новом подключении к сети TOR.'
-                    emoji="🌉"
-                    enabled={settings.refreshBridges}
-                    onToggle={() => toggle('refreshBridges')}
-                />
-                <SettingItem
-                    label="Автоматическое включение"
-                    description="Автоматически запускать TOR при включении компьютера."
-                    emoji="🤖"
-                    enabled={settings.autoTor}
-                    onToggle={() => toggle('autoTor')}
-                />
+                {SECTIONS.map((section, i) => (
+                    <div key={section.title} className="contents">
+                        <h2 className="section-title" style={i ? { marginTop: '20px' } : undefined}>{section.title}</h2>
+                        {section.items.map((item) => (
+                            <SettingItem
+                                key={item.key}
+                                label={item.label}
+                                description={item.description}
+                                emoji={item.emoji}
+                                enabled={settings[item.key]}
+                                onToggle={() => toggle(item.key)}
+                            />
+                        ))}
+                    </div>
+                ))}
             </div>
         </div>
     );

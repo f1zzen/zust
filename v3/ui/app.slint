@@ -1,0 +1,928 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icons, Icon, Btn, Card, Switch, SettingRow, Segmented, Chip, Choice, SectionTitle } from "components.slint";
+import { MorphShape } from "@gen/morph.slint";
+import { Backend, Ui } from "globals.slint";
+import { ClassicHome, ClassicBackground, Dock, StrategyModal, ClassicStrategyItem } from "classic.slint";
+import { PowerButton } from "power.slint";
+import { MarkOrScare } from "scare.slint";
+import { ProxyPage } from "proxy.slint";
+import { ZustTray } from "tray.slint";
+import { HostsDialog, LinkDialog, ListsDialog, AboutDialog, TestDialog } from "dialogs.slint";
+import { Toasts } from "toasts.slint";
+
+// шрифты вшиваются в исполняемый файл - окно не ждёт загрузки и сети
+import "fonts/GoogleSansFlexRegular.ttf";
+import "fonts/GoogleSansFlexMedium.ttf";
+import "fonts/GoogleSansFlexSemiBold.ttf";
+import "fonts/GoogleSansFlexBold.ttf";
+import "fonts/GoogleSansFlexDisplaySemiBold.ttf";
+import "fonts/GoogleSansFlexDisplayBold.ttf";
+import "fonts/Onest-Regular.ttf";
+import "fonts/Lora.ttf";
+import "fonts/IBMPlexMono-Regular.ttf";
+import "fonts/IBMPlexMono-Medium.ttf";
+import "fonts/IBMPlexMono-SemiBold.ttf";
+
+export { Theme, Backend, Ui, ZustTray }
+
+// ================= навигация =================
+
+component RailItem inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <bool> active;
+    callback clicked;
+    height: 68px;
+    VerticalLayout {
+        alignment: center;
+        spacing: 4px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                // M3E: индикатор "растягивается" под иконкой с пружиной
+                width: root.active ? 56px : (ta.has-hover ? 40px : 32px);
+                height: 32px;
+                border-radius: Theme.lite ? 4px : 16px;
+                background: root.active ? Theme.primary-container
+                    : ta.has-hover ? Theme.on-surface.transparentize(92%) : transparent;
+                animate width { duration: Theme.slow; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                animate background { duration: Theme.fast; }
+                Icon {
+                    name: root.icon;
+                    color: root.active ? Theme.on-primary-container : Theme.on-surface-variant;
+                }
+            }
+        }
+        Text {
+            text: root.label;
+            horizontal-alignment: center;
+            font-size: 12px;
+            font-weight: root.active ? Theme.strong-weight + 100 : 500;
+            color: root.active ? Theme.on-surface : Theme.on-surface-variant;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component SideItem inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <bool> active;
+    callback clicked;
+    height: 40px;
+    border-radius: Theme.radius-s;
+    // Моно: активный пункт - инверсия; Тёплая - мягкая подложка
+    background: root.active ? (Theme.mono ? Theme.on-surface : Theme.surface-high)
+        : ta.has-hover ? Theme.on-surface.transparentize(94%) : transparent;
+    animate background { duration: Theme.fast; }
+    HorizontalLayout {
+        padding-left: 12px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Icon {
+                name: root.icon;
+                width: 18px;
+                height: 18px;
+                color: root.active && Theme.mono ? Theme.background
+                    : root.active ? Theme.on-surface : Theme.on-surface-variant;
+            }
+        }
+        Text {
+            text: Theme.mono ? root.label.to-lowercase() : root.label;
+            vertical-alignment: center;
+            font-size: 14px;
+            font-weight: root.active ? 600 : 400;
+            color: root.active && Theme.mono ? Theme.background
+                : root.active ? Theme.on-surface : Theme.on-surface-variant;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// ================= страницы =================
+
+component HomePage inherits VerticalLayout {
+    property <bool> on: Backend.state == 2;
+    property <string> headline:
+        Theme.mono ? (on ? "zapret: работает" : Backend.state == 1 ? "zapret: запуск" : Backend.state == 3 ? "zapret: ошибка" : "zapret: выключен")
+        : Theme.warm ? (on ? "Всё работает." : Backend.state == 1 ? "Секунду…" : Backend.state == 3 ? "Не получилось." : "Обход выключен.")
+        : (on ? "Обход работает" : Backend.state == 1 ? "Запуск…" : Backend.state == 3 ? "Не удалось запустить" : "Выключено");
+    property <string> subline:
+        Theme.mono ? (on ? "трафик discord/youtube идёт через winws" : "нажмите кнопку или ctrl+enter")
+        : Theme.warm ? (on ? "Discord и YouTube открываются через zapret. Если что-то перестанет работать - попробуйте другую стратегию ниже."
+                          : "Включите, когда сайты перестанут открываться. Настройки можно не трогать - всё уже подобрано.")
+        : (on ? "Discord, YouTube и сайты из списков идут через zapret" : "Нажмите на кнопку, чтобы включить zapret");
+    property <string> current: Backend.strategies.length > 0 ? Backend.strategies[Backend.strategy] : "-";
+    property <LayoutAlignment> align: Theme.left-aligned ? LayoutAlignment.start : LayoutAlignment.center;
+    property <TextHorizontalAlignment> text-align: Theme.left-aligned ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
+
+    alignment: center;
+    spacing: Theme.m3e ? 28px : 24px;
+    padding-left: Theme.left-aligned ? 48px : 32px;
+    padding-right: 32px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+
+    VerticalLayout {
+        spacing: 8px;
+        if Theme.warm: Text {
+            text: "zapret";
+            font-size: 13px;
+            letter-spacing: 1.5px;
+            color: Theme.on-surface-variant;
+        }
+        Text {
+            text: headline;
+            horizontal-alignment: text-align;
+            font-family: Theme.heading-font;
+            font-size: Theme.display-size;
+            font-weight: Theme.heading-weight;
+            color: Theme.m3e && on ? Theme.primary : Backend.state == 3 ? Theme.error : Theme.on-surface;
+            animate color { duration: Theme.normal; }
+        }
+        HorizontalLayout {
+            alignment: align;
+            Text {
+                text: subline;
+                horizontal-alignment: text-align;
+                font-size: Theme.warm ? 15px : 14px;
+                color: Theme.on-surface-variant;
+                wrap: word-wrap;
+                max-width: 460px;
+            }
+        }
+    }
+
+    PowerButton {
+        state: Backend.state;
+        align: align;
+        clicked => { Backend.toggle(); }
+    }
+
+    // стратегия: переключение стрелками в один клик + перезапуск рядом
+    HorizontalLayout {
+        alignment: align;
+        spacing: 10px;
+        Card {
+            width: 360px;
+            height: Theme.m3e ? 72px : 64px;
+            background: Theme.m3e ? Theme.secondary-container : Theme.surface;
+            HorizontalLayout {
+                padding: 10px;
+                spacing: 6px;
+                Btn {
+                    kind: "text";
+                    icon: Icons.prev;
+                    enabled: Backend.state != 1;
+                    clicked => { Backend.select-strategy(Backend.strategy - 1); }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+                    Text {
+                        text: Theme.mono ? "стратегия" : "Стратегия";
+                        horizontal-alignment: center;
+                        font-size: 12px;
+                        color: Theme.on-surface-variant;
+                    }
+                    Text {
+                        text: current;
+                        horizontal-alignment: center;
+                        font-size: 16px;
+                        font-weight: Theme.strong-weight;
+                        color: Theme.on-surface;
+                        overflow: elide;
+                    }
+                }
+                Btn {
+                    kind: "text";
+                    icon: Icons.next;
+                    enabled: Backend.state != 1;
+                    clicked => { Backend.select-strategy(Backend.strategy + 1); }
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            Btn {
+                icon: Icons.refresh;
+                text: Theme.m3e ? "" : (Theme.mono ? "перезапуск" : "Перезапустить");
+                kind: Theme.m3e ? "tertiary" : "outline";
+                height: Theme.m3e ? 72px : 40px;
+                width: Theme.m3e ? 72px : self.min-width;
+                border-radius: Theme.m3e ? 24px : Theme.pill-buttons ? self.height / 2 : Theme.button-radius;
+                enabled: Backend.state == 2 || Backend.state == 3;
+                clicked => { Backend.restart(); }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        alignment: align;
+        spacing: 8px;
+        Chip { text: "zapret"; on: on; }
+        Chip { text: "TOR"; on: Backend.tor; }
+        Chip { text: "hosts"; on: Backend.hosts; }
+        Chip { text: "GameFilter"; on: Backend.game-filter; }
+    }
+}
+
+component PageHeader inherits Text {
+    font-family: Theme.heading-font;
+    font-size: Theme.warm ? 30px : 26px;
+    font-weight: Theme.heading-weight;
+    color: Theme.on-surface;
+}
+
+component ConfigsPage inherits VerticalLayout {
+    padding: 28px;
+    spacing: 14px;
+    HorizontalLayout {
+        PageHeader { text: Theme.mono ? "стратегии" : "Стратегии"; }
+        Rectangle { }
+        Btn {
+            text: Theme.mono ? "импорт .bat" : "Импорт .bat";
+            icon: Icons.plus;
+            kind: "outline";
+            clicked => { Backend.import-bat(); }
+        }
+    }
+    Text {
+        text: "Если сайт перестал открываться - выберите другую стратегию. Новые приходят автоматически.";
+        font-size: 13px;
+        color: Theme.on-surface-variant;
+        wrap: word-wrap;
+    }
+    ScrollView {
+        VerticalLayout {
+            alignment: start;
+            spacing: Theme.m3e ? 4px : 2px;
+
+            // ---- обновления из репозитория стратегий ----
+            if Backend.updates.length > 0: Card {
+                HorizontalLayout {
+                    padding: 14px;
+                    padding-left: 18px;
+                    spacing: 14px;
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+                        Text {
+                            text: Backend.updates.length == 1 ? "Есть обновление стратегии"
+                                : "Есть обновления: " + Backend.updates.length + " стратегий";
+                            font-size: 14px;
+                            font-weight: Theme.strong-weight;
+                            color: Theme.on-surface;
+                        }
+                        Text {
+                            text: "Способы блокировки меняются - свежие стратегии обходят их лучше. Ваши собственные стратегии не трогаются.";
+                            font-size: 12px;
+                            color: Theme.on-surface-variant;
+                            wrap: word-wrap;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Btn {
+                            text: Backend.updating ? "Обновление…" : "Обновить";
+                            icon: Icons.refresh;
+                            kind: "filled";
+                            enabled: !Backend.updating;
+                            clicked => { Backend.apply-updates(); }
+                        }
+                    }
+                }
+            }
+            if Backend.updates.length > 0: Rectangle { height: 8px; }
+
+            HorizontalLayout {
+                padding-bottom: 6px;
+                SectionTitle { text: Theme.mono ? "ПОДБОР" : "Подбор стратегии"; vertical-alignment: center; }
+            }
+            Card {
+                height: test-row.preferred-height;
+                test-row := HorizontalLayout {
+                    padding: 16px;
+                    spacing: 14px;
+                    Text {
+                        text: "Не знаете, какую выбрать? Z.UST проверит все стратегии на Discord и YouTube и подскажет лучшую.";
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        font-size: 13px;
+                        color: Theme.on-surface-variant;
+                        wrap: word-wrap;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Btn {
+                            text: Backend.test-running ? (Theme.mono ? "идёт тест" : "Идёт тест…") : (Theme.mono ? "подобрать" : "Подобрать");
+                            icon: Icons.refresh;
+                            kind: "tonal";
+                            clicked => { Backend.test-open(); }
+                        }
+                    }
+                }
+            }
+            Rectangle { height: 12px; }
+
+            HorizontalLayout {
+                padding-bottom: 6px;
+                SectionTitle { text: Theme.mono ? "СВОИ СПИСКИ" : "Свои списки"; vertical-alignment: center; }
+            }
+            Card {
+                height: lists-row.preferred-height;
+                lists-row := HorizontalLayout {
+                    padding: 16px;
+                    spacing: 14px;
+                    Text {
+                        text: "Добавьте сайт, который zapret не обходит, или исключите тот, что из-за него перестал открываться.";
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        font-size: 13px;
+                        color: Theme.on-surface-variant;
+                        wrap: word-wrap;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Btn {
+                            text: Theme.mono ? "изменить" : "Изменить";
+                            icon: Icons.list;
+                            kind: "tonal";
+                            clicked => { Backend.lists-open(); }
+                        }
+                    }
+                }
+            }
+            Rectangle { height: 12px; }
+
+            // ---- фильтр по IP ----
+            HorizontalLayout {
+                padding-bottom: 6px;
+                SectionTitle { text: Theme.mono ? "ФИЛЬТР ПО IP" : "Фильтр по IP (ipset)"; vertical-alignment: center; }
+                Rectangle { }
+                Btn {
+                    text: Theme.mono ? "свои ipset" : "Свои ipset";
+                    kind: "text";
+                    height: 30px;
+                    clicked => { Backend.open-folder("ipset-configs"); }
+                }
+            }
+            HorizontalLayout {
+                alignment: start;
+                spacing: 8px;
+                for name[i] in Backend.ipsets: Choice {
+                    text: name;
+                    selected: i == Backend.ipset;
+                    clicked => { Backend.select-ipset(i); }
+                }
+            }
+            Text {
+                text: Backend.ipset == 0 ? "zapret работает только по спискам доменов. Подходит в большинстве случаев."
+                    : Backend.ipset == 1 ? "Правила по IP - для всех адресов. Обходит сильнее, но больше нагружает систему."
+                    : Backend.ipset == 2 ? "Адреса из списка ipset-all.txt (Discord, Cloudflare и др.)."
+                    : "Ваш список адресов из папки ipset-configs.";
+                font-size: 12px;
+                color: Theme.on-surface-variant;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                padding-top: 16px;
+                padding-bottom: 6px;
+                SectionTitle { text: Theme.mono ? "СТРАТЕГИИ" : "Стратегии"; vertical-alignment: center; }
+                Rectangle { }
+                Btn {
+                    text: Theme.mono ? "папка" : "Открыть папку";
+                    kind: "text";
+                    height: 30px;
+                    clicked => { Backend.open-folder("strategies"); }
+                }
+            }
+
+            if Theme.classic: VerticalLayout {
+                spacing: 8px;
+                for name[i] in Backend.strategies: ClassicStrategyItem {
+                    name: name;
+                    active: i == Backend.strategy;
+                    clicked => { Backend.select-strategy(i); }
+                }
+            }
+            for name[i] in Backend.strategies: Rectangle {
+                visible: !Theme.classic;
+                height: Theme.classic ? 0px : 52px;
+                property <bool> sel: i == Backend.strategy;
+                // M3E: список - единая группа, крупно скруглены только её края
+                property <length> top: Theme.m3e ? (sel ? 26px : i == 0 ? 20px : 6px) : Theme.radius-m;
+                property <length> bottom: Theme.m3e ? (sel ? 26px : i == Backend.strategies.length - 1 ? 20px : 6px) : Theme.radius-m;
+                border-top-left-radius: top;
+                border-top-right-radius: top;
+                border-bottom-left-radius: bottom;
+                border-bottom-right-radius: bottom;
+                background: sel ? (Theme.mono ? Theme.on-surface : Theme.primary-container)
+                    : Theme.m3e ? (ta.has-hover ? Theme.surface-high.mix(Theme.primary, 85%) : Theme.surface-high)
+                    : ta.has-hover ? Theme.surface-high : (Theme.mono || Theme.warm ? transparent : Theme.surface);
+                animate background { duration: Theme.fast; }
+                animate border-top-left-radius, border-top-right-radius, border-bottom-left-radius, border-bottom-right-radius {
+                    duration: Theme.normal; easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+                }
+                HorizontalLayout {
+                    padding-left: 18px;
+                    padding-right: 18px;
+                    spacing: 12px;
+                    Text {
+                        text: name;
+                        vertical-alignment: center;
+                        font-size: 14px;
+                        font-weight: sel ? 600 : 400;
+                        color: sel ? (Theme.mono ? Theme.background : Theme.on-primary-container) : Theme.on-surface;
+                    }
+                    Rectangle { }
+                    if sel: Text {
+                        text: Backend.state == 2 ? "работает" : "выбрана";
+                        vertical-alignment: center;
+                        font-size: 12px;
+                        color: Theme.mono ? Theme.background : Theme.on-primary-container;
+                    }
+                }
+                ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Backend.select-strategy(i); }
+                }
+            }
+        }
+    }
+}
+
+// строка настроек, которая открывает окно
+component NavRow inherits Rectangle {
+    in property <string> title;
+    in property <string> hint;
+    in property <bool> divider;
+    callback clicked;
+    min-height: 60px;
+    background: ta.has-hover ? Theme.on-surface.transparentize(95%) : transparent;
+    animate background { duration: Theme.fast; }
+    if root.divider: Rectangle {
+        x: 18px;
+        y: 0;
+        width: parent.width - 36px;
+        height: 1px;
+        background: Theme.outline;
+    }
+    HorizontalLayout {
+        padding-left: 18px;
+        padding-right: 14px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            spacing: 2px;
+            Text { text: root.title; font-size: 15px; color: Theme.on-surface; }
+            if root.hint != "": Text { text: root.hint; font-size: 12px; color: Theme.on-surface-variant; overflow: elide; }
+        }
+        VerticalLayout {
+            alignment: center;
+            Icon { name: Icons.next; width: 18px; height: 18px; color: Theme.on-surface-variant; }
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component SettingsPage inherits ScrollView {
+    VerticalLayout {
+        alignment: start;
+        padding: 28px;
+        spacing: 12px;
+        PageHeader { text: Theme.mono ? "настройки" : "Настройки"; }
+
+        SectionTitle { text: Theme.mono ? "ОФОРМЛЕНИЕ" : "Оформление"; }
+        Card {
+            VerticalLayout {
+                alignment: start;
+                padding: 18px;
+                spacing: 12px;
+                Text { text: "Тема"; color: Theme.on-surface; font-size: 15px; }
+                Segmented {
+                    items: ["M3E", "Тёплая", "Моно", "Классика", "Лёгкая"];
+                    selected <=> Theme.style;
+                    changed => { Backend.settings-changed(); }
+                }
+                Text { text: "Панель навигации"; color: Theme.on-surface; font-size: 15px; }
+                Segmented {
+                    items: ["Слева", "Справа"];
+                    selected <=> Theme.nav-side;
+                    changed => { Backend.settings-changed(); }
+                }
+                Text { text: "Акцент"; color: Theme.on-surface; font-size: 15px; }
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 12px;
+                    for c in [#8e6cef, #c96442, #4f8cf7, #2fb38c, #e8833a, #e05584, #9aa0a6]: Rectangle {
+                        width: 36px;
+                        height: 36px;
+                        border-radius: Theme.lite || Theme.mono ? 8px : 18px;
+                        background: c;
+                        border-width: Theme.accent == c ? 3px : 0px;
+                        border-color: Theme.on-surface;
+                        transform-scale: sw.has-hover ? 1.1 : 1;
+                        animate transform-scale { duration: Theme.fast; }
+                        sw := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                Theme.accent = c;
+                                Backend.settings-changed();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Card {
+            VerticalLayout {
+                alignment: start;
+                SettingRow {
+                    title: "Тёмная тема";
+                    hint: Theme.classic ? "\"Классика\" всегда тёмная" : "";
+                    checked <=> Theme.dark;
+                    enabled: !Theme.classic;
+                    toggled => { Backend.settings-changed(); }
+                }
+                SettingRow {
+                    divider: true;
+                    title: "Анимации";
+                    hint: Theme.lite ? "В \"Лёгкой\" теме анимации всегда выключены" : "Отключите, если интерфейс подтормаживает";
+                    checked <=> Theme.animations;
+                    enabled: !Theme.lite;
+                    toggled => { Backend.settings-changed(); }
+                }
+            }
+        }
+
+        SectionTitle { text: Theme.mono ? "ГРАФИКА" : "Графика"; }
+        Card {
+            VerticalLayout {
+                alignment: start;
+                padding: 18px;
+                spacing: 10px;
+                Segmented {
+                    items: ["Авто", "Видеокарта", "Без видеокарты"];
+                    selected <=> Backend.renderer-choice;
+                    changed => { Backend.settings-changed(); }
+                }
+                Text {
+                    text: "Сейчас: " + Backend.renderer + " · память: " + Backend.memory
+                        + "\nИзменение применится после перезапуска Z.UST. \"Без видеокарты\" работает везде, даже без драйверов.";
+                    color: Theme.on-surface-variant;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        SectionTitle { text: Theme.mono ? "DNS OVERRIDE" : "DNS Override"; }
+        Card {
+            HorizontalLayout {
+                padding: 18px;
+                spacing: 14px;
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+                    Text { text: "hosts"; font-size: 15px; color: Theme.on-surface; }
+                    Text {
+                        text: Backend.hosts ? "Записи Z.UST уже есть в hosts. Можно поменять набор сайтов."
+                            : "Gemini, ChatGPT, Spotify и другие сайты, которые не пускают из России.";
+                        font-size: 12px;
+                        color: Theme.on-surface-variant;
+                        wrap: word-wrap;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Btn { text: "Настроить"; kind: "tonal"; clicked => { Backend.hosts-open(); } }
+                }
+            }
+        }
+
+        SectionTitle { text: Theme.mono ? "СООБЩЕСТВО" : "Сообщество"; }
+        Card {
+            VerticalLayout {
+                alignment: start;
+                NavRow { title: "Новости"; hint: Backend.news-title != "" ? Backend.news-title : "Новостей пока нет"; clicked => { Backend.about-open(0); } }
+                NavRow { divider: true; title: "Спонсоры"; hint: "Те, кто поддержал Z.UST на Boosty"; clicked => { Backend.about-open(1); } }
+                NavRow { divider: true; title: "Сообщество"; hint: "Те, кто помог проекту"; clicked => { Backend.about-open(2); } }
+            }
+        }
+
+        SectionTitle { text: "Z.UST"; }
+        Card {
+            VerticalLayout {
+                alignment: start;
+                SettingRow { title: "Запускать вместе с системой"; checked <=> Backend.autostart; toggled => { Backend.settings-changed(); } }
+                SettingRow { divider: true; title: "Сворачивать в трей при закрытии"; checked <=> Backend.tray; toggled => { Backend.settings-changed(); } }
+                SettingRow { divider: true; title: "Уведомления"; hint: "Об ошибках сообщаем всегда"; checked <=> Backend.notifications; toggled => { Backend.settings-changed(); } }
+                if Backend.launcher-supported: SettingRow {
+                    divider: true;
+                    title: "Ярлык в меню приложений";
+                    hint: "Чтобы Z.UST находился в меню системы и лаунчерах (fuzzel, rofi, wofi)";
+                    checked <=> Backend.launcher-installed;
+                    toggled(v) => { Backend.launcher-set(v); }
+                }
+                SettingRow {
+                    divider: true;
+                    title: "GameFilter";
+                    hint: "Обход и для игровых портов (1024–65535). zapret перезапустится.";
+                    checked <=> Backend.game-filter;
+                    toggled => { Backend.settings-changed(); }
+                }
+            }
+        }
+        if Backend.update-version != "": Card {
+            HorizontalLayout {
+                padding: 14px;
+                padding-left: 18px;
+                spacing: 12px;
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+                    Text {
+                        text: "Вышла новая версия: v" + Backend.update-version;
+                        font-weight: Theme.strong-weight;
+                        color: Theme.on-surface;
+                    }
+                    Text {
+                        text: "Откроется страница загрузки на GitHub";
+                        font-size: 12px;
+                        color: Theme.on-surface-variant;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Btn { text: "Скачать"; kind: "filled"; clicked => { Backend.update-open(); } }
+                }
+            }
+        }
+        Text {
+            text: "Z.UST " + Backend.version;
+            horizontal-alignment: center;
+            color: Theme.on-surface-variant;
+            font-size: 12px;
+        }
+    }
+}
+
+component LogsPage inherits VerticalLayout {
+    padding: 28px;
+    spacing: 12px;
+    PageHeader { text: Theme.mono ? "логи" : "Логи"; }
+    Card {
+        ScrollView {
+            VerticalLayout {
+                alignment: start;
+                padding: 14px;
+                spacing: 2px;
+                for line in Backend.logs: Text {
+                    text: line;
+                    font-family: "IBM Plex Mono";
+                    font-size: 12px;
+                    wrap: word-wrap;
+                    color: Theme.on-surface-variant;
+                }
+            }
+        }
+    }
+}
+
+// ================= окно =================
+
+// навигация: колонка иконок или боковая панель с подписями
+component Nav inherits HorizontalLayout {
+    in property <[string]> labels;
+    in property <[string]> icons;
+    if !Theme.sidebar && !Theme.classic: Rectangle {
+        width: 92px;
+        background: Theme.classic ? transparent : Theme.m3e ? Theme.background : Theme.surface;
+        VerticalLayout {
+            padding-top: 20px;
+            padding-bottom: 16px;
+            spacing: 2px;
+            HorizontalLayout {
+                alignment: center;
+                padding-bottom: Theme.m3e ? 12px : 16px;
+                MarkOrScare { width: 36px; height: 36px; }
+            }
+            // M3E: кнопка включения zapret всегда под рукой
+            if Theme.m3e: HorizontalLayout {
+                alignment: center;
+                padding-bottom: 16px;
+                fab := Rectangle {
+                    property <bool> on: Backend.state == 2;
+                    width: 56px;
+                    height: 56px;
+                    border-radius: on ? 28px : fab-ta.pressed ? 12px : 18px;
+                    background: on ? Theme.primary : fab-ta.has-hover ? Theme.primary-container.brighter(12%) : Theme.primary-container;
+                    animate border-radius { duration: Theme.slow; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                    animate background { duration: Theme.normal; }
+                    Icon {
+                        name: Icons.power;
+                        color: fab.on ? Theme.on-primary : Theme.on-primary-container;
+                    }
+                    fab-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        enabled: Backend.state != 1;
+                        clicked => { Backend.toggle(); }
+                    }
+                }
+            }
+            for i in 4: RailItem {
+                icon: icons[i];
+                label: labels[i];
+                active: Ui.page == i;
+                clicked => { Ui.page = i; Backend.nav-click(i); }
+            }
+            Rectangle { }
+            RailItem { icon: icons[4]; label: labels[4]; active: Ui.page == 4; clicked => { Ui.page = 4; } }
+        }
+    }
+    if Theme.sidebar: Rectangle {
+        width: 220px;
+        background: Theme.warm ? Theme.surface : Theme.background;
+        Rectangle {
+            x: Theme.nav-right ? 0px : parent.width - 1px;
+            width: 1px;
+            background: Theme.outline;
+        }
+        VerticalLayout {
+            padding: 14px;
+            padding-top: 22px;
+            spacing: 2px;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-bottom: 18px;
+                spacing: 8px;
+                MarkOrScare { width: 34px; height: 34px; }
+                VerticalLayout {
+                    alignment: end;
+                    padding-bottom: 4px;
+                    Text {
+                        text: Backend.version;
+                        font-size: 11px;
+                        color: Theme.on-surface-variant;
+                    }
+                }
+            }
+            for i in 4: SideItem {
+                icon: icons[i];
+                label: labels[i];
+                active: Ui.page == i;
+                clicked => { Ui.page = i; Backend.nav-click(i); }
+            }
+            Rectangle { }
+            SideItem { icon: icons[4]; label: labels[4]; active: Ui.page == 4; clicked => { Ui.page = 4; } }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Z.UST";
+    icon: @image-url("icon.png");
+    preferred-width: 960px;
+    preferred-height: 660px;
+    min-width: 760px;
+    min-height: 580px;
+    background: Theme.background;
+    default-font-family: Theme.font;
+    default-font-size: 14px;
+    default-font-weight: Theme.body-weight;
+
+    property <[string]> labels: ["Главная", "Стратегии", "Прокси", "Настройки", "Логи"];
+    property <[string]> icons: [Icons.home, Icons.list, Icons.globe, Icons.tune, Icons.terminal];
+
+    if Theme.classic: ClassicBackground { }
+
+    HorizontalLayout {
+        if !Theme.nav-right && !Theme.classic: Nav { labels: labels; icons: icons; }
+
+        // ---- содержимое: в M3E - на приподнятой "плите" со скруглением ----
+        Rectangle {
+            Rectangle {
+                x: Theme.m3e ? (Theme.nav-right ? 12px : 0px) : Theme.classic && !Theme.nav-right ? 84px : 0px;
+                y: Theme.m3e ? 12px : 0px;
+                width: parent.width - (Theme.m3e ? 12px : Theme.classic ? 84px : 0px);
+                height: parent.height - (Theme.m3e ? 24px : 0px);
+                border-radius: Theme.m3e ? Theme.radius-l : 0px;
+                background: Theme.m3e ? Theme.surface : transparent;
+                clip: true;
+                // страницы стоят в ряд и сдвигаются, как слайдер в Zust 2
+                slider := Rectangle {
+                    property <length> w: parent.width;
+                    x: -Ui.page * w;
+                    width: w * 5;
+                    height: parent.height;
+                    animate x { duration: Theme.motion ? 500ms : 0ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+                    Rectangle {
+                        x: 0;
+                        width: slider.w;
+                        if Theme.classic: ClassicHome { }
+                        if !Theme.classic: HomePage { }
+                    }
+                    Rectangle { x: slider.w; width: slider.w; ConfigsPage { } }
+                    Rectangle { x: slider.w * 2; width: slider.w; ProxyPage { } }
+                    Rectangle { x: slider.w * 3; width: slider.w; SettingsPage { } }
+                    Rectangle { x: slider.w * 4; width: slider.w; LogsPage { } }
+                }
+            }
+        }
+
+        if Theme.nav-right && !Theme.classic: Nav { labels: labels; icons: icons; }
+    }
+
+    // в "Классике" знак стоит в углу только на главной, на других страницах там кнопки
+    if Theme.classic: MarkOrScare {
+        x: parent.width - self.width - 20px;
+        y: 16px;
+        interactive: Ui.page == 0;
+        opacity: Ui.page == 0 ? 1 : 0;
+        animate opacity { duration: Theme.normal; }
+    }
+
+    if Theme.classic: Dock {
+        icons: icons;
+        x: Theme.nav-right ? parent.width - self.width - 16px : 16px;
+        y: (parent.height - self.height) / 2;
+    }
+
+    // Предложение добавить ярлык в меню приложений (Linux, один раз)
+    offer := Rectangle {
+        property <bool> shown: Backend.launcher-offer;
+        width: min(560px, root.width - 32px);
+        height: offer-row.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height - 20px + (shown ? 0px : 24px);
+        opacity: shown ? 1 : 0;
+        visible: self.opacity > 0.01;
+        animate y, opacity { duration: Theme.motion ? 300ms : 0ms; easing: ease-out; }
+        border-radius: Theme.radius-m;
+        background: Theme.classic ? #121218 : Theme.surface-high;
+        border-width: 1px;
+        border-color: Theme.classic ? #ffffff14 : Theme.outline;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #00000060;
+        TouchArea { }
+        offer-row := HorizontalLayout {
+            padding: 14px;
+            padding-left: 18px;
+            spacing: 12px;
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                Text {
+                    text: "Добавить Z.UST в меню приложений?";
+                    font-size: 14px;
+                    font-weight: Theme.strong-weight;
+                    color: Theme.on-surface;
+                }
+                Text {
+                    text: "Тогда его можно найти в меню системы и лаунчерах. Убрать - в настройках.";
+                    font-size: 12px;
+                    color: Theme.on-surface-variant;
+                    wrap: word-wrap;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                Btn { text: "Не сейчас"; kind: "text"; clicked => { Backend.launcher-dismiss(); } }
+            }
+            VerticalLayout {
+                alignment: center;
+                Btn { text: "Добавить"; kind: "filled"; clicked => { Backend.launcher-set(true); } }
+            }
+        }
+    }
+
+    Toasts {
+        width: min(440px, root.width - 32px);
+        height: root.height - 40px;
+        x: (root.width - self.width) / 2;
+        // над предложением ярлыка, если оно открыто
+        y: 20px - (Backend.launcher-offer ? offer.height + 12px : 0px);
+    }
+
+    HostsDialog { }
+    LinkDialog { }
+    ListsDialog { }
+    AboutDialog { }
+    TestDialog { }
+
+    // "Классика": выбор стратегии в модальном окне, как в Zust 2
+    if Theme.classic: StrategyModal { open: Ui.picker; }
+}

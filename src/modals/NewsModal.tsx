@@ -1,11 +1,9 @@
+import { Modal } from "./Modal";
 import { useState, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
-import { invoke } from "@tauri-apps/api/core";
-import { cn } from "@/lib/utils";
-import { useModalAnimation } from "./useModalAnimation";
-import { ModalBlock, ModalContent, ModalFooter, ModalHeader } from "@/Buttons";
+import { ModalContent, ModalFooter, ModalHeader } from "@/Buttons";
 import { Button } from "@/components/ui/button";
-import { log } from "../Logic";
+import { api, log } from "@/lib/api";
 
 export const NewsModal = ({
     isOpen,
@@ -17,7 +15,6 @@ export const NewsModal = ({
     updateAvailable: string | null;
 }) => {
     const [news, setNews] = useState<{ title: string; content: string } | null>(null);
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -60,21 +57,14 @@ export const NewsModal = ({
         onClose();
     };
 
-    if (!shouldRender || !news) return null;
+    if (!news) return null;
 
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={handleInternalClose}
-        >
-            <ModalBlock onClick={(e: any) => e.stopPropagation()}>
+        <Modal isOpen={isOpen} onClose={handleInternalClose}>
                 {updateAvailable && (
                     <div
                         className="mx-4 mt-4 p-4 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-blue-500/30 transition-all active:scale-[0.98]"
-                        onClick={() => invoke("open_link", { url: "https://github.com/f1zzen/zust/releases" })}
+                        onClick={() => api.openLink("https://github.com/f1zzen/zust/releases/latest")}
                     >
                         <div className="flex flex-col">
                             <span className="text-blue-300 text-[15px] font-bold">
@@ -101,7 +91,7 @@ export const NewsModal = ({
                             a: ({ ...props }) => (
                                 <a {...props} onClick={(e) => {
                                     e.preventDefault();
-                                    if (props.href) invoke("open_link", { url: props.href });
+                                    if (props.href) api.openLink(props.href);
                                 }} className="text-purple-400 hover:underline font-bold" />
                             ),
                             strong: ({ children }) => <strong className="text-purple-300 font-extrabold">{children}</strong>,
@@ -124,7 +114,6 @@ export const NewsModal = ({
                         Принято
                     </Button>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

@@ -1,0 +1,601 @@
+// Окна поверх интерфейса; в "Классике" - как в Zust 2.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icons, Icon, Btn, Segmented, Switch } from "components.slint";
+import { Backend, Ui, HostsCategory, LinkRow, Person, TestItem } from "globals.slint";
+
+component Dialog inherits Rectangle {
+    in property <bool> open;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <length> box-height: 520px;
+    // клик мимо окна закрывает его (если сейчас ничего не выполняется)
+    in property <bool> closable: true;
+    property <float> shown: open ? 1 : 0;
+    animate shown { duration: Theme.motion ? 220ms : 0ms; easing: ease-out; }
+    visible: shown > 0.001;
+    background: #00000099;
+    opacity: shown;
+
+    TouchArea {
+        enabled: root.open && root.closable;
+        clicked => { Backend.dialog-close(); }
+    }
+    box := Rectangle {
+        width: min(560px, root.width - 32px);
+        height: min(root.box-height, root.height - 32px);
+        border-radius: Theme.classic ? 24px : Theme.radius-l;
+        background: Theme.classic ? #0d0d12 : Theme.surface;
+        border-width: 1px;
+        border-color: Theme.classic ? #ffffff0d : Theme.outline;
+        clip: true;
+        transform-scale: 0.94 + 0.06 * root.shown;
+        drop-shadow-blur: 40px;
+        drop-shadow-color: #00000080;
+        TouchArea { }  // клики внутри окна не закрывают его
+        VerticalLayout {
+            padding: 22px;
+            spacing: 14px;
+            VerticalLayout {
+                spacing: 4px;
+                Text {
+                    text: root.title;
+                    font-family: Theme.heading-font;
+                    font-size: Theme.warm ? 24px : 20px;
+                    font-weight: Theme.heading-weight;
+                    color: Theme.classic ? #ffffff : Theme.on-surface;
+                }
+                if root.subtitle != "": Text {
+                    text: root.subtitle;
+                    font-size: 13px;
+                    color: Theme.classic ? #ffffff66 : Theme.on-surface-variant;
+                    wrap: word-wrap;
+                }
+            }
+            @children
+        }
+    }
+}
+
+component CheckRow inherits Rectangle {
+    in property <HostsCategory> item;
+    callback toggled;
+    height: 46px;
+    border-radius: Theme.radius-s;
+    background: ta.has-hover ? Theme.surface-high : transparent;
+    animate background { duration: Theme.fast; }
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 20px;
+                height: 20px;
+                border-radius: Theme.mono ? 0px : 6px;
+                background: root.item.selected ? Theme.primary : transparent;
+                border-width: root.item.selected ? 0px : 2px;
+                border-color: Theme.on-surface-variant;
+                animate background { duration: Theme.fast; }
+                if root.item.selected: Text { text: "✓"; color: Theme.on-primary; font-size: 13px; font-weight: 700; }
+            }
+        }
+        Text {
+            text: root.item.name;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            font-size: 14px;
+            color: Theme.on-surface;
+            overflow: elide;
+        }
+        Text {
+            text: root.item.count + " зап.";
+            vertical-alignment: center;
+            font-size: 12px;
+            color: Theme.on-surface-variant;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+export component HostsDialog inherits Dialog {
+    open: Ui.dialog == 1;
+    closable: !Backend.hosts-saving;
+    title: "DNS Override (hosts)";
+    subtitle: "Сайты, которые блокируют вход из России (Gemini, ChatGPT, Spotify…), откроются через подменённые адреса. "
+        + "Списки: dns.malw.link и flowseal" + (Backend.hosts-date != "" ? " · обновлены " + Backend.hosts-date : "") + ".";
+
+    Rectangle {
+        height: comss-row.preferred-height;
+        border-radius: Theme.radius-s;
+        background: Theme.classic ? #ffffff08 : Theme.surface-high;
+        comss-row := HorizontalLayout {
+            padding: 12px;
+            spacing: 12px;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 2px;
+                Text {
+                    text: "Comss.one DNS";
+                    font-size: 14px;
+                    font-weight: Theme.strong-weight;
+                    color: Theme.on-surface;
+                }
+                Text {
+                    text: Backend.comss-busy ? "Меняем DNS…"
+                        : "Системный DNS от comss.one: открывает ChatGPT, Claude, Copilot и др., режет рекламу. Можно вместе со списками ниже.";
+                    font-size: 12px;
+                    color: Theme.on-surface-variant;
+                    wrap: word-wrap;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                Switch {
+                    checked <=> Backend.comss;
+                    enabled: !Backend.comss-busy;
+                    toggled => { Backend.comss-toggle(); }
+                }
+            }
+        }
+    }
+    if Backend.hosts-loading: Text {
+        text: "Загрузка списков…";
+        vertical-stretch: 1;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        color: Theme.on-surface-variant;
+    }
+    if !Backend.hosts-loading: ScrollView {
+        vertical-stretch: 1;
+        VerticalLayout {
+            alignment: start;
+            spacing: 2px;
+            for c[i] in Backend.hosts-categories: CheckRow {
+                item: c;
+                toggled => { Backend.hosts-toggle(i); }
+            }
+        }
+    }
+    if Backend.hosts-error != "": Text {
+        text: Backend.hosts-error;
+        font-size: 12px;
+        color: Theme.error;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        Btn {
+            text: "Очистить кэш DNS";
+            kind: "text";
+            enabled: !Backend.hosts-saving;
+            clicked => { Backend.flush-dns(); }
+        }
+        Rectangle { }
+        Btn {
+            text: "Отмена";
+            kind: "outline";
+            enabled: !Backend.hosts-saving;
+            clicked => { Backend.dialog-close(); }
+        }
+        Btn {
+            text: Backend.hosts-saving ? "Запись…" : "Применить";
+            icon: Icons.check;
+            kind: "filled";
+            enabled: !Backend.hosts-loading && !Backend.hosts-saving;
+            clicked => { Backend.hosts-apply(); }
+        }
+    }
+}
+
+export component LinkDialog inherits Dialog {
+    open: Ui.dialog == 2;
+    closable: !Backend.link-busy;
+    box-height: 460px;
+    title: Backend.link-title;
+    subtitle: "Запрос из ссылки zust://. Ничего не применится, пока вы не нажмёте кнопку.";
+
+    VerticalLayout {
+        vertical-stretch: 1;
+        alignment: start;
+        spacing: 8px;
+        for r in Backend.link-rows: Rectangle {
+            height: row.preferred-height;
+            border-radius: Theme.radius-s;
+            background: !r.ok ? Theme.error.transparentize(88%) : (Theme.classic ? #ffffff08 : Theme.surface-high);
+            border-width: 1px;
+            border-color: !r.ok ? Theme.error.transparentize(60%) : transparent;
+            row := HorizontalLayout {
+                padding: 12px;
+                spacing: 12px;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 2px;
+                    Text {
+                        text: r.label.to-uppercase();
+                        font-size: 10px;
+                        letter-spacing: 1px;
+                        font-weight: 700;
+                        color: Theme.on-surface-variant;
+                    }
+                    Text {
+                        text: r.value == "" ? "-" : r.value;
+                        font-size: 14px;
+                        color: Theme.on-surface;
+                        wrap: word-wrap;
+                    }
+                }
+                if !r.ok: Text {
+                    text: "не найдено";
+                    vertical-alignment: center;
+                    horizontal-stretch: 0;
+                    font-size: 12px;
+                    color: Theme.error;
+                }
+            }
+        }
+        Text {
+            text: Backend.link-text;
+            font-size: 13px;
+            color: Backend.link-danger ? Theme.error : Theme.on-surface-variant;
+            wrap: word-wrap;
+        }
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: end;
+        Btn {
+            text: "Отмена";
+            kind: "outline";
+            enabled: !Backend.link-busy;
+            clicked => { Backend.dialog-close(); }
+        }
+        if Backend.link-confirm-text != "": Btn {
+            text: Backend.link-busy ? "Выполняется…" : Backend.link-confirm-text;
+            kind: "filled";
+            danger: Backend.link-danger;
+            enabled: !Backend.link-busy;
+            clicked => { Backend.link-confirm(); }
+        }
+    }
+}
+
+export component ListsDialog inherits Dialog {
+    open: Ui.dialog == 3;
+    box-height: 600px;
+    title: "Свои списки";
+    subtitle: Backend.lists-tab == 0 ? "Сайты, которые zapret будет обходить вдобавок к встроенным спискам. Поддомены включаются сами."
+        : Backend.lists-tab == 1 ? "Сайты, которые zapret не должен трогать (например, если они перестали открываться)."
+        : "IP-адреса и подсети, которые zapret не должен трогать.";
+
+    Segmented {
+        items: ["Сайты", "Исключения", "Исключения IP"];
+        selected: Backend.lists-tab;
+        changed(i) => { Backend.lists-select(i); }
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        Rectangle {
+            horizontal-stretch: 1;
+            height: 42px;
+            border-radius: Theme.pill-buttons ? 21px : Theme.button-radius;
+            background: Theme.classic ? #ffffff0d : Theme.surface-high;
+            border-width: input.has-focus ? 2px : 1px;
+            border-color: input.has-focus ? Theme.primary : Theme.outline;
+            input := TextInput {
+                x: 16px;
+                width: parent.width - 32px;
+                height: parent.height;
+                vertical-alignment: center;
+                font-size: 14px;
+                color: Theme.classic ? #ffffff : Theme.on-surface;
+                single-line: true;
+                accepted => { if Backend.lists-add(self.text) { self.text = ""; } }
+            }
+            if input.text == "": Text {
+                x: 16px;
+                height: parent.height;
+                vertical-alignment: center;
+                text: Backend.lists-tab == 2 ? "1.2.3.4 или 1.2.3.0/24" : "example.com или ссылка на сайт";
+                font-size: 14px;
+                color: Theme.on-surface-variant.transparentize(40%);
+            }
+        }
+        Btn {
+            text: "Добавить";
+            icon: Icons.plus;
+            kind: "tonal";
+            clicked => { if Backend.lists-add(input.text) { input.text = ""; } }
+        }
+    }
+    if Backend.lists-error != "": Text {
+        text: Backend.lists-error;
+        font-size: 12px;
+        color: Theme.error;
+        wrap: word-wrap;
+    }
+    if Backend.lists-entries.length == 0: Text {
+        text: "Список пуст";
+        vertical-stretch: 1;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        color: Theme.on-surface-variant;
+    }
+    if Backend.lists-entries.length > 0: ScrollView {
+        vertical-stretch: 1;
+        VerticalLayout {
+            alignment: start;
+            spacing: 2px;
+            for e[i] in Backend.lists-entries: Rectangle {
+                height: 40px;
+                border-radius: Theme.radius-s;
+                background: row-ta.has-hover ? Theme.surface-high : transparent;
+                row-ta := TouchArea { }
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 6px;
+                    Text {
+                        text: e;
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        font-size: 14px;
+                        color: Theme.classic ? #ffffff : Theme.on-surface;
+                        overflow: elide;
+                    }
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        y: 4px;
+                        border-radius: 16px;
+                        background: del.has-hover ? Theme.error.transparentize(85%) : transparent;
+                        Icon {
+                            name: Icons.close;
+                            width: 16px;
+                            height: 16px;
+                            color: del.has-hover ? Theme.error : Theme.on-surface-variant;
+                        }
+                        del := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Backend.lists-remove(i); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        Btn {
+            text: "Открыть папку";
+            kind: "text";
+            clicked => { Backend.open-folder("lists"); }
+        }
+        Rectangle { }
+        if Backend.lists-changed && Backend.state == 2: Btn {
+            text: "Перезапустить zapret";
+            icon: Icons.refresh;
+            kind: "filled";
+            clicked => { Backend.lists-restart(); }
+        }
+        Btn {
+            text: "Готово";
+            kind: Backend.lists-changed && Backend.state == 2 ? "outline" : "filled";
+            clicked => { Backend.dialog-close(); }
+        }
+    }
+}
+
+component PersonCard inherits Rectangle {
+    in property <Person> person;
+    height: 64px;
+    border-radius: Theme.radius-m;
+    background: Theme.classic ? #ffffff08 : Theme.surface-high;
+    border-width: Theme.classic ? 1px : 0px;
+    border-color: #ffffff0d;
+    VerticalLayout {
+        alignment: center;
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 2px;
+        Text {
+            text: root.person.name;
+            horizontal-alignment: center;
+            font-size: 14px;
+            font-weight: Theme.strong-weight;
+            color: Theme.classic ? #ffffffcc : Theme.on-surface;
+            overflow: elide;
+        }
+        if root.person.note != "": Text {
+            text: root.person.note;
+            horizontal-alignment: center;
+            font-size: 12px;
+            color: Theme.primary;
+            overflow: elide;
+        }
+    }
+}
+
+export component AboutDialog inherits Dialog {
+    open: Ui.dialog == 4;
+    box-height: 560px;
+    title: Backend.about-tab == 0 ? (Backend.news-title != "" ? Backend.news-title : "Новости")
+        : Backend.about-tab == 1 ? "Спонсоры на Boosty" : "Наше сообщество";
+    subtitle: Backend.about-tab == 1 ? "Люди, которые поддержали Z.UST деньгами. Список пополняется с каждой версией."
+        : Backend.about-tab == 2 ? "Люди, которые помогли Z.UST или сделали для него что-то важное." : "";
+
+    Segmented {
+        items: ["Новости", "Спонсоры", "Сообщество"];
+        selected <=> Backend.about-tab;
+    }
+    if Backend.about-tab == 0: ScrollView {
+        vertical-stretch: 1;
+        VerticalLayout {
+            alignment: start;
+            Text {
+                text: Backend.news-body != "" ? Backend.news-body : "Новостей пока нет. Следите за ТГК!";
+                font-size: 14px;
+                color: Theme.classic ? #ffffffcc : Theme.on-surface;
+                wrap: word-wrap;
+            }
+        }
+    }
+    if Backend.about-tab != 0: ScrollView {
+        property <[Person]> people: Backend.about-tab == 1 ? Backend.sponsors : Backend.community;
+        vertical-stretch: 1;
+        VerticalLayout {
+            alignment: start;
+            spacing: 8px;
+            for row in ceil(people.length / 3): HorizontalLayout {
+                spacing: 8px;
+                for k in 3: Rectangle {
+                    horizontal-stretch: 1;
+                    height: 64px;
+                    if row * 3 + k < people.length: PersonCard {
+                        width: parent.width;
+                        height: parent.height;
+                        person: people[row * 3 + k];
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        if Backend.about-tab == 1: Btn {
+            text: "Поддержать";
+            kind: "tonal";
+            clicked => { Backend.open-link("https://boosty.to/zust"); }
+        }
+        if Backend.about-tab != 1: Btn {
+            text: "Телеграм-канал";
+            kind: "tonal";
+            clicked => { Backend.open-link("https://t.me/zdotust"); }
+        }
+        Rectangle { }
+        Btn {
+            text: "Готово";
+            kind: "filled";
+            clicked => { Backend.dialog-close(); }
+        }
+    }
+}
+
+component TestRowItem inherits Rectangle {
+    in property <TestItem> item;
+    in property <bool> interactive;
+    callback clicked;
+    height: row.preferred-height;
+    border-radius: Theme.radius-s;
+    background: root.item.best ? Theme.primary-container
+        : ta.has-hover && root.interactive ? Theme.surface-high : (Theme.classic ? #ffffff08 : transparent);
+    animate background { duration: Theme.fast; }
+    row := HorizontalLayout {
+        padding: 10px;
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 12px;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 2px;
+            Text {
+                text: root.item.name;
+                font-size: 14px;
+                font-weight: root.item.best ? 600 : 400;
+                color: root.item.best ? Theme.on-primary-container : Theme.on-surface;
+                overflow: elide;
+            }
+            Text {
+                text: root.item.detail;
+                font-size: 11px;
+                color: root.item.failed ? Theme.error
+                    : root.item.best ? Theme.on-primary-container : Theme.on-surface-variant;
+                overflow: elide;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: ta.has-hover && root.interactive ? "выбрать" : root.item.best ? "лучшая · " + root.item.score : root.item.score;
+                font-size: 13px;
+                font-weight: Theme.strong-weight;
+                color: root.item.best ? Theme.on-primary-container : Theme.on-surface-variant;
+            }
+        }
+    }
+    ta := TouchArea {
+        enabled: root.interactive;
+        mouse-cursor: root.interactive ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component TestDialog inherits Dialog {
+    open: Ui.dialog == 5;
+    closable: !Backend.test-running;
+    box-height: 620px;
+    title: "Тест стратегий";
+    subtitle: "Z.UST по очереди включит каждую стратегию и проверит, открываются ли Discord и YouTube. "
+        + "Это займёт пару минут, связь в это время может прерываться. Потом zapret вернётся в прежнее состояние.";
+
+    if Backend.test-running || Backend.test-status != "": VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: Backend.test-status;
+            font-size: 13px;
+            color: Theme.on-surface;
+            wrap: word-wrap;
+        }
+        if Backend.test-running: Rectangle {
+            height: 6px;
+            border-radius: 3px;
+            background: Theme.classic ? #ffffff14 : Theme.surface-high;
+            Rectangle {
+                x: 0;
+                width: parent.width * Backend.test-progress;
+                border-radius: 3px;
+                background: Theme.primary;
+                animate width { duration: Theme.normal; }
+            }
+        }
+    }
+    ScrollView {
+        vertical-stretch: 1;
+        VerticalLayout {
+            alignment: start;
+            spacing: 4px;
+            for r in Backend.test-rows: TestRowItem {
+                item: r;
+                interactive: !Backend.test-running && !r.failed;
+                clicked => { Backend.test-apply(r.name); }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: end;
+        Btn {
+            text: Backend.test-running ? "Остановить" : "Закрыть";
+            kind: "outline";
+            clicked => {
+                if Backend.test-running {
+                    Backend.test-stop();
+                } else {
+                    Backend.dialog-close();
+                }
+            }
+        }
+        if !Backend.test-running: Btn {
+            text: Backend.test-rows.length > 0 ? "Проверить снова" : "Начать";
+            icon: Icons.refresh;
+            kind: "filled";
+            clicked => { Backend.test-start(); }
+        }
+    }
+}

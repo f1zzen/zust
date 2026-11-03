@@ -1,9 +1,7 @@
-import { useModalAnimation } from "./useModalAnimation";
+import { Modal, CloseButton } from "./Modal";
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { log } from "../Logic";
+import { api, log, stripExt } from "@/lib/api";
 import {
-    ModalBlock,
     ModalHeader,
     ModalContent,
     ModalFooter,
@@ -15,7 +13,7 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     configs: string[];
-    stratName: string;
+    stratName: string | null;
     onSelect: (name: string) => void;
     updatableStrats: string[];
     setUpdatableStrats: React.Dispatch<React.SetStateAction<string[]>>;
@@ -28,7 +26,7 @@ const UpdateButton = ({ name, onUpdated }: { name: string, onUpdated: () => void
         e.stopPropagation();
         setStatus('loading');
         try {
-            await invoke('apply_strategy_update', { fileName: name });
+            await api.applyStrategyUpdate(name);
             setStatus('success');
             setTimeout(() => {
                 setStatus('idle');
@@ -65,19 +63,9 @@ export const StrategyModal = ({
     updatableStrats,
     setUpdatableStrats
 }: Props) => {
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
-
-    if (!shouldRender) return null;
 
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={onClose}
-        >
-            <ModalBlock onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+        <Modal isOpen={isOpen} onClose={onClose}>
                 <ModalHeader
                     title="Стратегии"
                     status={configs.length + " доступно"}
@@ -110,7 +98,7 @@ export const StrategyModal = ({
                                     "flex-1 font-['Onest'] text-[14px] font-medium transition-colors",
                                     isActive ? "text-white" : "text-white/60 group-hover:text-white/90"
                                 )}>
-                                    {cfg.replace('.zapret', '')}
+                                    {stripExt(cfg)}
                                 </span>
 
                                 {isActive ? (
@@ -130,18 +118,12 @@ export const StrategyModal = ({
 
                 <ModalFooter>
                     <SelectButton
-                        onClick={() => invoke('open_strats_dir')}
+                        onClick={() => api.openFolder('strategies')}
                         front="Открыть папку"
                         back="Открыть папку"
                     />
-                    <button
-                        className="rounded-lg bg-white/5 px-4 py-1 font-['Onest'] text-[13px] font-bold text-white/60 transition-all hover:bg-white/10 hover:text-white active:scale-95"
-                        onClick={onClose}
-                    >
-                        Закрыть
-                    </button>
+                    <CloseButton onClick={onClose}>Закрыть</CloseButton>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

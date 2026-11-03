@@ -16,3 +16,10 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+# сборки Rust (v3, core)
+target/
+# образы для виртуалки
+*.iso
+
+# текст релиза локальный, эт мой черновик
+CHANGELOG.md

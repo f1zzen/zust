@@ -1,0 +1,247 @@
+# Z.UST 3 (v3 + core): проверки и сборка под Windows, Linux и macOS.
+#
+# - при каждом push/PR: проверки и сборка;
+#   готовые архивы - во вкладке Actions → нужный запуск → Artifacts.
+# - при push тега вида v3.0.0: черновик релиза с архивами.
+name: v3
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v3.*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Проверки
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Тег совпадает с версией в v3/Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/v3.')
+        run: |
+          v=$(grep -m1 '^version' v3/Cargo.toml | cut -d'"' -f2)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Тег $GITHUB_REF_NAME, а в Cargo.toml $v"; exit 1; }
+      - name: Все .bin из стратегий лежат в zapret/bin
+        run: |
+          miss=0
+          for b in $(grep -ohE '[A-Za-z0-9_.]+\.bin' src-tauri/zapret/strategies/* | sort -u); do
+            [ -f "src-tauri/zapret/bin/$b" ] || { echo "Нет файла $b"; miss=1; }
+          done
+          exit $miss
+      - name: Системные библиотеки
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            core
+            v3
+      - name: cargo fmt
+        run: |
+          cargo fmt --check --manifest-path core/Cargo.toml
+          cargo fmt --check --manifest-path v3/Cargo.toml
+      - name: cargo clippy
+        run: |
+          cargo clippy --manifest-path core/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --manifest-path v3/Cargo.toml --features shots --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --manifest-path core/Cargo.toml
+
+  build:
+    name: Сборка (${{ matrix.name }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          # самая старая Ubuntu на GitHub: glibc 2.35, запустится и на Debian 12
+          - name: Linux
+            os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Системные библиотеки (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: v3
+      # из папки v3, чтобы подхватился v3/.cargo/config.toml (статический CRT на Windows)
+      - name: cargo build
+        working-directory: v3
+        run: cargo build --release
+
+      - name: Архив (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $d = "Z.UST-windows"
+          New-Item -ItemType Directory $d | Out-Null
+          Copy-Item v3/target/release/zust-v3.exe "$d/Z.UST.exe"
+          Copy-Item -Recurse src-tauri/zapret, src-tauri/tor, src-tauri/frp $d
+          Copy-Item src-tauri/icons/icon.ico $d
+          Compress-Archive $d "$d.zip"
+          # установщик: Program Files, ярлыки, удаление Zust 2
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            choco install nsis -y --no-progress | Out-Null
+            $env:PATH += ";${env:ProgramFiles(x86)}\NSIS"
+          }
+          $v = (Select-String -Path v3/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          makensis /V2 "/DVERSION=$v" "/DSRC=$PWD\$d" "/DOUT=$PWD\Z.UST-setup.exe" v3/packaging/windows/installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Архив (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          d=Z.UST-linux
+          mkdir $d
+          cp v3/target/release/zust-v3 $d/zust
+          cp -r src-tauri/zapret $d/
+          rm -f $d/zapret/bin/{WinDivert.dll,WinDivert64.sys,cygwin1.dll,winws.exe}
+          cat > $d/README.txt <<'EOF'
+          Z.UST 3 для Linux
+
+          Запуск: ./zust  (папка zapret должна лежать рядом)
+
+          Нужно: nftables (nft), polkit (pkexec) - zapret запускается от root, пароль спросят.
+          nfqws Z.UST скачает сам при первом включении. Для TOR нужен установленный tor.
+          EOF
+          tar czf $d.tar.gz $d
+          # тот же набор одним файлом-установщиком: sh Z.UST-linux.sh
+          tar czf payload.tgz -C $d --exclude README.txt .
+          cat v3/packaging/linux-install.sh payload.tgz > $d.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Z.UST-${{ matrix.name }}
+          path: Z.UST-*.*
+          if-no-files-found: error
+
+  macos:
+    name: Сборка (macOS)
+    needs: check
+    runs-on: macos-14
+    # macOS пока не проверен на живом Mac: ошибка здесь не мешает релизу Windows и Linux
+    continue-on-error: true
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+    steps:
+      - uses: actions/checkout@v4
+      # движок zapret из исходников Flowseal: их готовая сборка требует macOS 14, наша - 12
+      - name: utunws
+        run: |
+          git clone -q --depth 1 --branch 1.1.2 https://github.com/Flowseal/zapret-mac-discord-youtube flowseal
+          sdk=$(xcrun --sdk macosx --show-sdk-path)
+          cd flowseal/nfq
+          for a in arm64 x86_64; do
+            clang -std=gnu99 -Os -Wno-address-of-packed-member -isysroot "$sdk" -target $a-apple-macos12.0 \
+              -o utunws-$a *.c crypto/*.c -lz
+          done
+          lipo -create -output "$GITHUB_WORKSPACE/src-tauri/zapret/bin/utunws" utunws-arm64 utunws-x86_64
+          codesign --force --sign - "$GITHUB_WORKSPACE/src-tauri/zapret/bin/utunws"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            core
+            v3
+      - name: cargo clippy
+        run: |
+          cd core && cargo clippy --all-targets -- -D warnings
+          cd ../v3 && cargo clippy --all-targets -- -D warnings
+      - name: cargo test
+        working-directory: core
+        run: cargo test
+      # настоящий запуск: utunws, правила pf, сайты через движок, остановка
+      - name: zapret (sudo)
+        working-directory: core
+        run: |
+          cargo build --example mac_smoke
+          sudo ./target/debug/examples/mac_smoke "$GITHUB_WORKSPACE/src-tauri"
+      - name: cargo build (arm64 + x86_64)
+        working-directory: v3
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+      # TOR внутри программы: официальный Tor Expert Bundle, arm64 + x86_64 → universal
+      - name: TOR
+        run: |
+          v=$(curl -fsS https://dist.torproject.org/torbrowser/ | grep -o 'href="[0-9][0-9.]*/"' | tr -d 'href="/' | sort -V | tail -1)
+          mkdir tor-dl && cd tor-dl
+          curl -fsS "https://dist.torproject.org/torbrowser/$v/sha256sums-signed-build.txt" -o sums.txt
+          for a in aarch64 x86_64; do
+            f="tor-expert-bundle-macos-$a-$v.tar.gz"
+            curl -fsS "https://dist.torproject.org/torbrowser/$v/$f" -o "$f"
+            grep " $f\$" sums.txt | shasum -a 256 -c -
+            mkdir $a && tar xzf "$f" -C $a
+          done
+          python3 ../v3/packaging/macos/tor_bundle.py aarch64 x86_64 ../tor-macos
+          test -x ../tor-macos/tor/tor && test -x ../tor-macos/tor/pluggable_transports/lyrebird
+      - name: Z.UST.app
+        run: |
+          app="Z.UST.app/Contents"
+          mkdir -p "$app/MacOS" "$app/Resources"
+          lipo -create -output "$app/MacOS/zust" \
+            v3/target/aarch64-apple-darwin/release/zust-v3 v3/target/x86_64-apple-darwin/release/zust-v3
+          version=$(grep -m1 '^version' v3/Cargo.toml | cut -d'"' -f2)
+          sed "s/@VERSION@/$version/g" v3/packaging/macos/Info.plist > "$app/Info.plist"
+          cp -r src-tauri/zapret "$app/Resources/"
+          cp -r tor-macos "$app/Resources/tor"
+          rm -f "$app"/Resources/zapret/bin/{WinDivert.dll,WinDivert64.sys,cygwin1.dll,winws.exe}
+          # значок по сетке macOS (с отступами) → zust.icns
+          mkdir zust.iconset
+          for s in 16 32 128 256 512; do
+            sips -z $s $s v3/packaging/macos/icon-1024.png --out zust.iconset/icon_${s}x${s}.png >/dev/null
+            sips -z $((s*2)) $((s*2)) v3/packaging/macos/icon-1024.png --out zust.iconset/icon_${s}x${s}@2x.png >/dev/null
+          done
+          iconutil -c icns zust.iconset -o "$app/Resources/zust.icns"
+          # подпись без сертификата: без неё arm64 не запустится вовсе
+          codesign --force --deep --sign - Z.UST.app
+          codesign --verify --deep --strict Z.UST.app
+          lipo -archs "$app/MacOS/zust"
+          ditto -c -k --keepParent Z.UST.app Z.UST-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Z.UST-macOS
+          path: Z.UST-macos.zip
+          if-no-files-found: error
+
+  release:
+    name: Черновик релиза
+    if: startsWith(github.ref, 'refs/tags/v3.')
+    needs: [build, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Z.UST-*
+          merge-multiple: true
+          path: artifacts
+      # контрольные суммы: можно проверить, что архив скачался целым и не подменён
+      - run: cd artifacts && sha256sum Z.UST-* > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: artifacts/*

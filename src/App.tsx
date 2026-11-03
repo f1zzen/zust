@@ -3,32 +3,33 @@ import { ExtraPage } from './pages/Extra';
 import { HomePage } from './pages/Home';
 import { SettingsPage } from "./pages/Settings";
 import { EditorPage } from "./pages/Editor";
+import { LogsPage } from "./pages/Logs";
+import { ProxyPage } from "./pages/Proxy";
 import { NotificationProvider } from './Notifications';
 import { StrategyModal } from "./modals/StrategyModal"
 import { IpsetModal } from "./modals/IpsetModal"
 import { ConvertModal } from "./modals/ConvertModal"
 import { HostsModal } from "./modals/HostsModal"
-import { Logic } from "./Logic";
 import { ProxyModal } from "./modals/ProxyModal";
 import { NewsModal } from "./modals/NewsModal";
-import { useEffect, useRef, useState } from "react";
-import { ProxyPage } from "./pages/Proxy";
 import { DeepLinkModal } from "./modals/DeepLinkModal";
+import { HotspotModal } from "./modals/HotSpotModal";
+import { SponsorsModal } from "./modals/SponsorsModal";
+import { CommunityModal } from "./modals/CommunityModal";
+import { RepairZapret4TorModal } from "./modals/RepairZapret4Tor";
+import { useApp, type PageId } from "./Logic";
+import { useEffect, useRef, useState } from "react";
 import { StarsBackground } from "./components/animate-ui/components/backgrounds/stars";
 import { cn } from "./lib/utils";
 import { Dock, DockIcon } from "./components/ui/dock";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Separator } from "./components/ui/separator";
 import { motion } from "motion/react";
-import { HotspotModal } from "./modals/HotSpotModal";
-import { SponsorsModal } from "./modals/SponsorsModal";
-import { CommunityModal } from "./modals/CommunityModal";
 import { FreezeProvider } from "./Freeze";
-import { RepairZapret4TorModal } from "./modals/RepairZapret4Tor";
 
 const STRASHILKI_BUGAGA = 12;
 
-const PAGE_INDEX: Record<string, number> = { home: 0, settings: 1, proxy: 2, editor: 3, credits: 4 };
+const PAGES: PageId[] = ['home', 'settings', 'proxy', 'editor', 'logs', 'credits'];
 
 const NAV_ICONS = {
   home: {
@@ -50,6 +51,10 @@ const NAV_ICONS = {
   editor: {
     label: 'Редактор',
     path: <><path d="M13 21h8" /><path d="m15 5 4 4" /><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /></>
+  },
+  logs: {
+    label: 'Логи',
+    path: <><path d="M15 12h-5" /><path d="M15 8h-5" /><path d="M19 17V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></>
   },
   credits: {
     label: 'Дополнительно',
@@ -114,37 +119,26 @@ const NavItem = (props: any) => {
 };
 
 function App() {
-  const { state, prefs, actions } = Logic();
-  useEffect(() => {
-    (window as any).testNewsModal = () => {
-      localStorage.removeItem("last_seen_news_id");
-      prefs.setIsNewsModalOpen(true);
-    };
-  }, [prefs]);
-  const { zapret } = state;
+  const app = useApp();
+  const { zapret } = app;
 
   const [bugagaConfig, setBugagaConfig] = useState<{ path: string, id: number } | null>(null);
-  const jumpscareTimer = useRef<NodeJS.Timeout | null>(null);
+  const jumpscareTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastClickTime = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const [renderedPages, setRenderedPages] = useState<string[]>([state.activePage]);
-
   const creditsClickCount = useRef(0);
 
+  // страница рендерится при первом посещении и дальше остаётся в памяти
+  const [renderedPages, setRenderedPages] = useState<PageId[]>([app.activePage]);
   useEffect(() => {
-    return () => {
-      if (jumpscareTimer.current) clearTimeout(jumpscareTimer.current);
-    };
+    setRenderedPages((prev) => prev.includes(app.activePage) ? prev : [...prev, app.activePage]);
+  }, [app.activePage]);
+
+  useEffect(() => () => {
+    if (jumpscareTimer.current) clearTimeout(jumpscareTimer.current);
   }, []);
 
-  useEffect(() => {
-    if (!renderedPages.includes(state.activePage)) {
-      setRenderedPages((prev) => [...prev, state.activePage]);
-    }
-  }, [state.activePage]);
-
-  const handleNavClick = (id: string) => {
+  const handleNavClick = (id: PageId) => {
     const currentTime = Date.now();
 
     if (id === 'credits') {
@@ -181,38 +175,28 @@ function App() {
       creditsClickCount.current = 0;
     }
 
-    prefs.setActivePage(id);
+    app.setActivePage(id);
   };
 
-  const renderPage = (pageId: string) => {
+  const renderPage = (pageId: PageId) => {
     if (!renderedPages.includes(pageId)) return null;
 
     switch (pageId) {
-      case 'home': return <HomePage
-        {...zapret}
-        onSelectConfig={actions.handleStrategyChange}
-        isSelectorOpen={state.isSelectorOpen}
-        setIsSelectorOpen={prefs.setIsSelectorOpen}
-        loadConfigs={actions.loadIpsetConfigs}
-        setIsConvertOpen={prefs.setIsConvertOpen}
-        setIsIpsetModalOpen={prefs.setIsIpsetModalOpen}
-        setIsHostsModalOpen={prefs.setIsHostsModalOpen}
-        setIsProxyModalOpen={prefs.setIsProxyModalOpen}
-        setIsNewsModalOpen={prefs.setIsNewsModalOpen}
-        handleToggle={() => zapret.status === 'stopped' ? zapret.startProcess() : zapret.stopProcess()}
-      />;
-      case 'settings': return <SettingsPage />;
+      case 'home': return <HomePage zapret={zapret} openModal={app.openModal} />;
+      case 'settings': return <SettingsPage zapret={zapret} />;
       case 'proxy': return <ProxyPage
-        isHotspotActive={state.isHotspotActive}
-        setIsHotspotActive={(val: boolean) => prefs.setIsHotspotActive(val)}
-        setIsHotspotOpen={() => prefs.setIsHotspotOpen(true)}
-        activeHotspotPort={state.activeHotspotPort}
+        hotspotPort={app.hotspotPort}
+        setHotspotPort={app.setHotspotPort}
+        openHotspot={() => app.openModal('hotspot')}
       />;
       case 'editor': return <EditorPage />;
-      case 'credits': return <ExtraPage {...zapret} torLogs={state.torLogs} logs={state.logs} logStart={state.logStart} prefs={prefs} />;
-      default: return null;
+      case 'logs': return <LogsPage logs={app.logs} torLogs={app.torLogs} />;
+      case 'credits': return <ExtraPage appInfo={app.appInfo} updateAvailable={app.updateAvailable} openModal={app.openModal} />;
     }
   };
+
+  const isOpen = (id: Parameters<typeof app.openModal>[0]) => app.modal === id;
+  const pageIndex = PAGES.indexOf(app.activePage);
 
   return (
     <FreezeProvider>
@@ -225,9 +209,22 @@ function App() {
           <div className="app-identity" data-tauri-drag-region>
             <span className="star-icon">✦</span>
             <span className="app-name">Zust</span>
+            {app.appInfo && (
+              <span className="text-[11px] text-white/30" title={`${app.appInfo.commit} · ${app.appInfo.buildDate}`}>
+                v{app.appInfo.version}
+              </span>
+            )}
+            {app.updateAvailable && (
+              <button
+                className="rounded-full bg-blue-500/15 px-2 text-[10px] font-bold text-blue-300 hover:bg-blue-500/25"
+                onClick={() => app.openModal('news')}
+              >
+                обновление
+              </button>
+            )}
           </div>
           <div className="window-controls">
-            <button className={`win-btn pin ${state.isPinned ? 'active' : ''}`} onClick={actions.togglePin} title="Always on top">
+            <button className={`win-btn pin ${app.isPinned ? 'active' : ''}`} onClick={app.actions.togglePin} title="Always on top">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg>
             </button>
             <button className="win-btn" onClick={() => getCurrentWindow().minimize()}>−</button>
@@ -237,9 +234,12 @@ function App() {
         </header>
         <NotificationProvider>
           <main className="scroll-area">
-            <div className="pages-slider" style={{ transform: `translateX(-${PAGE_INDEX[state.activePage] * 20}%)` }}>
-              {Object.keys(PAGE_INDEX).map((pageId) => (
-                <div key={pageId} className={`page ${state.activePage === pageId ? 'active' : ''}`}>
+            <div
+              className="pages-slider"
+              style={{ width: `${PAGES.length * 100}%`, transform: `translateX(-${(pageIndex * 100) / PAGES.length}%)` }}
+            >
+              {PAGES.map((pageId) => (
+                <div key={pageId} className={`page ${app.activePage === pageId ? 'active' : ''}`} style={{ width: `${100 / PAGES.length}%` }}>
                   {renderPage(pageId)}
                 </div>
               ))}
@@ -320,15 +320,15 @@ function App() {
             >
               <NavItem
                 id="home"
-                isActive={state.activePage === 'home'}
+                isActive={app.activePage === 'home'}
                 onClick={() => handleNavClick('home')}
               />
               <Separator orientation="vertical" className="h-8 bg-white/10 mx-2" />
-              {['settings', 'proxy', 'editor'].map((id) => (
+              {(['settings', 'proxy', 'editor', 'logs'] as const).map((id) => (
                 <NavItem
                   key={id}
                   id={id}
-                  isActive={state.activePage === id}
+                  isActive={app.activePage === id}
                   onClick={() => handleNavClick(id)}
                 />
               ))}
@@ -337,52 +337,42 @@ function App() {
 
               <NavItem
                 id="credits"
-                isActive={state.activePage === 'credits'}
+                isActive={app.activePage === 'credits'}
                 onClick={() => handleNavClick('credits')}
               />
             </Dock>
           </TooltipProvider>
         </footer>
-        <StrategyModal isOpen={state.isSelectorOpen} onClose={() => prefs.setIsSelectorOpen(false)} configs={zapret.configs} stratName={zapret.stratName} onSelect={actions.handleStrategyChange} updatableStrats={state.updatableStrats} setUpdatableStrats={prefs.setUpdatableStrats} />
-        <ConvertModal isOpen={state.isConvertOpen} onClose={() => prefs.setIsConvertOpen(false)} onPick={actions.handlePickFiles} />
+        <StrategyModal
+          isOpen={isOpen('strategy')}
+          onClose={app.closeModal}
+          configs={zapret.configs}
+          stratName={zapret.running}
+          onSelect={app.actions.selectStrategy}
+          updatableStrats={app.updatableStrats}
+          setUpdatableStrats={app.setUpdatableStrats}
+        />
+        <ConvertModal isOpen={isOpen('convert')} onClose={app.closeModal} onPick={app.actions.pickBatFiles} />
         <IpsetModal
-          isOpen={state.isIpsetModalOpen}
-          onClose={() => { prefs.setIsIpsetModalOpen(false); prefs.setIpsetView('main'); }}
-          selectedIpset={zapret.selectedIpset}
-          ipsetView={state.ipsetView}
-          setIpsetView={prefs.setIpsetView}
-          customIpsetFiles={state.customIpsetFiles}
-          onModeChange={actions.changeIpsetMode}
-          loadCustom={actions.loadIpsetConfigs}
-          hoveredDesc={state.hoveredDesc}
-          setHoveredDesc={prefs.setHoveredDesc}
+          isOpen={isOpen('ipset')}
+          onClose={() => { app.closeModal(); app.setIpsetView('main'); }}
+          selectedIpset={zapret.ipset}
+          ipsetView={app.ipsetView}
+          setIpsetView={app.setIpsetView}
+          customIpsetFiles={app.customIpsetFiles}
+          onModeChange={app.actions.changeIpsetMode}
+          loadCustom={app.actions.loadIpsetConfigs}
+          hoveredDesc={app.hoveredDesc}
+          setHoveredDesc={app.setHoveredDesc}
         />
-        <DeepLinkModal
-          isOpen={state.isDeepLinkModalOpen}
-          onClose={() => prefs.setIsDeepLinkModalOpen(false)}
-          state={state}
-          data={state.deepLinkData}
-        />
-        <HostsModal isOpen={state.isHostsModalOpen} onClose={() => prefs.setIsHostsModalOpen(false)} />
-        <ProxyModal isOpen={state.isProxyModalOpen} onClose={() => prefs.setIsProxyModalOpen(false)} />
-        <HotspotModal
-          isOpen={state.isHotspotOpen}
-          onClose={() => prefs.setIsHotspotOpen(false)}
-          onLaunched={actions.handleHotspotLaunched}
-        />
-        <NewsModal
-          updateAvailable={state.updateAvailable}
-          onClose={() => prefs.setIsNewsModalOpen(false)}
-          isOpen={state.isNewsModalOpen} />
-        <SponsorsModal
-          isOpen={state.isSponsorsModalOpen}
-          onClose={() => prefs.setIsSponsorsModalOpen(false)}
-        />
-        <CommunityModal
-          isOpen={state.isCommunityModalOpen}
-          onClose={() => prefs.setIsCommunityModalOpen(false)}
-        />
-        <RepairZapret4TorModal stratName={zapret.selectedConfig} />
+        <DeepLinkModal isOpen={isOpen('deeplink')} onClose={app.closeModal} zapret={zapret} data={app.deepLinkData} />
+        <HostsModal isOpen={isOpen('hosts')} onClose={app.closeModal} />
+        <ProxyModal isOpen={isOpen('proxy')} onClose={app.closeModal} />
+        <HotspotModal isOpen={isOpen('hotspot')} onClose={app.closeModal} onLaunched={app.setHotspotPort} />
+        <NewsModal isOpen={isOpen('news')} onClose={app.closeModal} updateAvailable={app.updateAvailable} />
+        <SponsorsModal isOpen={isOpen('sponsors')} onClose={app.closeModal} />
+        <CommunityModal isOpen={isOpen('community')} onClose={app.closeModal} />
+        <RepairZapret4TorModal stratName={zapret.strategy} />
       </div>
     </FreezeProvider>
   );

@@ -1,7 +1,7 @@
+import { Modal, CloseButton } from "./Modal";
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { useModalAnimation } from "./useModalAnimation";
-import { DropDownItemStyle, ModalBlock, ModalContent, ModalFooter, ModalHeader, SelectButton } from "@/Buttons";
+import { api } from "@/lib/api";
+import { DropDownItemStyle, ModalContent, ModalFooter, ModalHeader, SelectButton } from "@/Buttons";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/animate-ui/components/radix/dropdown-menu";
 import { DropdownMenuItem } from "@/components/animate-ui/primitives/radix/dropdown-menu";
@@ -59,7 +59,6 @@ const ProxyRow = React.forwardRef<HTMLDivElement, { p: any; onClick: (addr: stri
 ProxyRow.displayName = "ProxyRow";
 
 export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
     const [proxies, setProxies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -70,7 +69,7 @@ export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
         try {
             const [list] = await Promise.all([
-                invoke<string[]>("get_proxy_list"),
+                api.proxyList(),
                 new Promise(resolve => setTimeout(resolve, 600))
             ]);
 
@@ -79,7 +78,7 @@ export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
             list.forEach(async (addr) => {
                 try {
-                    const result = await invoke<any>("check_proxy_ping", { address: addr });
+                    const result = await api.proxyPing(addr);
                     setProxies(prev => prev.map(p =>
                         p.address === addr ? {
                             ...p,
@@ -103,19 +102,8 @@ export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
     useEffect(() => { if (isOpen) loadAndPing(); }, [isOpen]);
 
-    if (!shouldRender) return null;
-
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={onClose}
-        >
-            <ModalBlock
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-            >
+        <Modal isOpen={isOpen} onClose={onClose}>
                 <ModalHeader
                     title="Прокси для Telegram"
                     status={proxies.length + " доступно"}
@@ -150,7 +138,7 @@ export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                                                     Основные действия
                                                 </DropdownMenuLabel>
                                                 <DropdownMenuItem
-                                                    onSelect={async () => await invoke("open_link", { url: proxyUrl })}
+                                                    onSelect={() => api.openLink(proxyUrl)}
                                                     className={DropDownItemStyle}
                                                 >
                                                     Открыть в ТГ
@@ -176,14 +164,8 @@ export const ProxyModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
                 <ModalFooter>
                     <SelectButton onClick={loadAndPing} front="Обновить" back="Обновить" />
-                    <button
-                        className="rounded-lg bg-white/5 px-4 py-1 font-['Onest'] text-[13px] font-bold text-white/60 transition-all hover:bg-white/10 hover:text-white active:scale-95"
-                        onClick={onClose}
-                    >
-                        Закрыть
-                    </button>
+                    <CloseButton onClick={onClose}>Закрыть</CloseButton>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

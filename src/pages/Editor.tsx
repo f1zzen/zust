@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { Header } from '@/Buttons';
+import { api, log, type FileNode } from '@/lib/api';
+import { notify } from '@/Notifications';
 import {
     FileItem,
     FolderItem,
@@ -11,13 +12,6 @@ import {
     Files,
     SubFiles,
 } from '@/components/animate-ui/components/radix/files';
-
-interface FileNode {
-    name: string;
-    is_dir: boolean;
-    children?: FileNode[];
-    path: string;
-}
 
 export const EditorPage = () => {
     const [loading, setLoading] = useState(true);
@@ -28,10 +22,9 @@ export const EditorPage = () => {
     async function loadTree() {
         setLoading(true);
         try {
-            const result = await invoke<FileNode[]>('get_file_tree');
-            setTree(result);
+            setTree(await api.fileTree());
         } catch (e) {
-            console.error(e);
+            log("Ошибка чтения файлов: " + e);
         } finally {
             setLoading(false);
         }
@@ -39,9 +32,9 @@ export const EditorPage = () => {
 
     async function openInEditor(path: string) {
         try {
-            await invoke('open_in_editor', { path });
+            await api.openInEditor(path);
         } catch (e) {
-            console.error("Ошибка открытия:", e);
+            notify(`Не удалось открыть файл: ${e}`, "error");
         }
     }
 
@@ -76,6 +69,14 @@ export const EditorPage = () => {
     return (
         <div className="content">
             <Header title="Редактор" />
+            <p className="mb-3 max-w-120 text-center text-[12px] text-white/35">
+                Файлы откроются в редакторе по умолчанию. Свои домены добавляйте в <span className="text-purple-300/70">list-general-user.txt</span> —
+                он не перезаписывается обновлениями. После правок перезапустите zapret.
+            </p>
+            <div className="mb-3 flex gap-2">
+                <button onClick={() => api.openFolder('')} className="rounded-lg bg-white/5 px-3 py-1 text-[12px] text-white/60 transition-all hover:bg-white/10 hover:text-white">Открыть папку</button>
+                <button onClick={loadTree} className="rounded-lg bg-white/5 px-3 py-1 text-[12px] text-white/60 transition-all hover:bg-white/10 hover:text-white">Обновить</button>
+            </div>
             <div className="relative mx-auto rounded-2xl border border-white/10 bg-[#0a0514]/60 backdrop-blur-md overflow-hidden shadow-2xl w-full max-w-120">
                 {loading ? (
                     <div className="p-20 flex flex-col items-center justify-center">

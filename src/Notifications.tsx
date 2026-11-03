@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "./lib/api";
 import { CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 
 type NotificationType = 'success' | 'error' | 'info';
@@ -15,6 +15,7 @@ interface NotificationContextType {
     showNotify: (message: string, type?: NotificationType) => void;
 }
 
+let nextId = 0;
 let notifyStatic: (msg: string, type?: NotificationType) => void = () => { };
 
 export const notify = (msg: string, type: NotificationType = 'info') => notifyStatic(msg, type);
@@ -27,7 +28,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
     const loadStatus = async () => {
         try {
-            const settings = await invoke<any>('load_settings');
+            const settings = await api.loadSettings();
             if (settings && typeof settings.notifications === 'boolean') {
                 enabledRef.current = settings.notifications;
             }
@@ -42,8 +43,9 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     }, []);
 
     const showNotify = useCallback((message: string, type: NotificationType = 'info') => {
-        if (!enabledRef.current) return;
-        const id = Date.now();
+        // ошибки показываем всегда — иначе пользователь не узнает, что что-то сломалось
+        if (!enabledRef.current && type !== 'error') return;
+        const id = ++nextId;
         setNotifications(prev => [{ id, message, type, exiting: false }, ...prev]);
         setTimeout(() => {
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, exiting: true } : n));
@@ -53,7 +55,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
     notifyStatic = showNotify;
 
-    (window as any).testNotify = showNotify;
+    if (import.meta.env.DEV) (window as any).testNotify = showNotify;
 
     const getIcon = (type: NotificationType) => {
         switch (type) {

@@ -1,6 +1,5 @@
-import { useModalAnimation } from "./useModalAnimation";
-import { ModalBlock, ModalHeader, ModalContent, ModalFooter } from "@/Buttons";
-import { cn } from "@/lib/utils";
+import { Modal, CloseButton } from "./Modal";
+import { ModalHeader, ModalContent, ModalFooter } from "@/Buttons";
 
 interface Props {
     isOpen: boolean;
@@ -8,22 +7,9 @@ interface Props {
     onPick: () => void;
 }
 export const ConvertModal = ({ isOpen, onClose, onPick }: Props) => {
-    const { shouldRender, isAnimatingOut } = useModalAnimation(isOpen);
-
-    if (!shouldRender) return null;
 
     return (
-        <div
-            className={cn(
-                "fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-300",
-                isAnimatingOut ? "opacity-0" : "opacity-100"
-            )}
-            onClick={onClose}
-        >
-            <ModalBlock
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                className="h-auto max-w-105"
-            >
+        <Modal isOpen={isOpen} onClose={onClose} className="h-auto max-w-105">
                 <ModalHeader
                     title="Конвертатор"
                     icon="👀"
@@ -57,14 +43,8 @@ export const ConvertModal = ({ isOpen, onClose, onPick }: Props) => {
                 </ModalContent>
 
                 <ModalFooter>
-                    <button
-                        className="rounded-lg bg-white/5 px-4 py-1 font-['Onest'] text-[13px] font-bold text-white/60 transition-all hover:bg-white/10 hover:text-white active:scale-95"
-                        onClick={onClose}
-                    >
-                        Отмена
-                    </button>
+                    <CloseButton onClick={onClose}>Отмена</CloseButton>
                 </ModalFooter>
-            </ModalBlock>
-        </div>
+            </Modal>
     );
 };

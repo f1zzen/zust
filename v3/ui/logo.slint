@@ -1,0 +1,161 @@
+// Знак Z.UST. Анимация - при открытии окна и по нажатию.
+import { Theme } from "theme.slint";
+
+struct LogoRay { a: angle, r0: float, r1: float, bend: angle, w: float }
+struct LogoPetal { a: angle, r0: float, len: float, w1: float, w2: float, tip: float }
+
+export component Logo inherits Rectangle {
+    in property <bool> interactive: true;
+    in property <color> ray-color: Theme.on-surface;
+    in property <brush> petal-color: Theme.mono ? Theme.on-surface
+        : @linear-gradient(135deg, Theme.primary.brighter(25%) 0%, Theme.accent 100%);
+    in property <color> stick-color: Theme.classic || Theme.is-dark ? #ffffff : Theme.on-surface;
+    width: 40px;
+    height: 40px;
+
+    property <[LogoRay]> rays: [
+        { a: -84.3deg, r0: 21.4, r1: 82.4, bend: 1.2deg, w: 8.19 },
+        { a: -97.9deg, r0: 16.1, r1: 95.4, bend: -2.9deg, w: 6.82 },
+        { a: -102.8deg, r0: 20.7, r1: 95.4, bend: -0.3deg, w: 8.24 },
+        { a: -121.9deg, r0: 22.3, r1: 96.3, bend: 0.3deg, w: 8.59 },
+        { a: -130.0deg, r0: 16.6, r1: 93.2, bend: 1.1deg, w: 7.05 },
+        { a: -147.4deg, r0: 24.7, r1: 85.2, bend: 2.6deg, w: 9.08 },
+        { a: -154.3deg, r0: 25.2, r1: 83.1, bend: 3.6deg, w: 7.56 },
+        { a: -164.8deg, r0: 24.8, r1: 74.7, bend: -4.4deg, w: 6.76 },
+        { a: -176.9deg, r0: 20.4, r1: 89.5, bend: -2.4deg, w: 7.78 },
+        { a: -193.8deg, r0: 19.5, r1: 88.4, bend: 1.0deg, w: 9.16 },
+        { a: -203.8deg, r0: 25.3, r1: 96.0, bend: 5.9deg, w: 8.35 },
+        { a: -220.2deg, r0: 24.6, r1: 99.0, bend: 4.9deg, w: 7.99 },
+        { a: -228.1deg, r0: 18.1, r1: 95.3, bend: 0.9deg, w: 7.00 }
+    ];
+    property <[LogoPetal]> petals: [
+        { a: -47.7deg, r0: 13.1, len: 86.7, w1: 18.5, w2: 16.5, tip: -1.4 },
+        { a: -26.4deg, r0: 12.6, len: 85.1, w1: 17.0, w2: 14.2, tip: 0.9 },
+        { a: -6.6deg, r0: 13.3, len: 86.4, w1: 21.9, w2: 17.9, tip: -1.7 },
+        { a: 15.0deg, r0: 8.2, len: 77.4, w1: 17.1, w2: 14.9, tip: -1.8 },
+        { a: 36.7deg, r0: 9.9, len: 89.4, w1: 21.0, w2: 21.5, tip: 0.1 },
+        { a: 54.4deg, r0: 11.6, len: 80.5, w1: 20.7, w2: 18.3, tip: -0.3 },
+        { a: 74.5deg, r0: 9.4, len: 78.0, w1: 19.5, w2: 19.7, tip: -2.0 },
+        { a: 91.6deg, r0: 11.5, len: 70.9, w1: 16.7, w2: 14.0, tip: 0.5 }
+    ];
+
+    property <bool> playing;
+    property <duration> started;
+    property <duration> length: 1800ms;
+    // 0 → 1 за время анимации; вне анимации стоит на 1
+    property <float> p: playing ? clamp((animation-tick() - started) / length, 0, 1) : 1;
+    property <float> k: self.width / 256px;
+
+    public function play() {
+        if !Theme.motion { return; }
+        started = animation-tick();
+        playing = true;
+        stop-timer.running = true;
+    }
+    init => { play(); }
+
+    stop-timer := Timer {
+        interval: root.length + 50ms;
+        running: false;
+        triggered => { self.running = false; root.playing = false; }
+    }
+
+    // наклон "в пространство": чуть скошено и приплюснуто
+    pure function tx(x: float, y: float) -> float { 128 + 0.95 * (x - 0.08 * y) }
+    pure function ty(y: float) -> float { 128 + 0.855 * y }
+
+    // лучи тускнеют и уходят вразнобой: у каждого своя задержка, скорость и кривизна
+    for r[i] in rays: Path {
+        property <float> h1: mod(i * 7 + 3, 13) / 13;
+        property <float> h2: mod(i * 11 + 5, 13) / 13;
+        property <float> h3: mod(i * 5 + 1, 13) / 13;
+        property <float> in-start: 0.02 + h1 * 0.2;
+        property <float> t-in: clamp((p - in-start) / (0.14 + h2 * 0.16), 0, 1);
+        property <float> t-out: clamp((p - 0.5 - h3 * 0.2) / (0.18 + h1 * 0.12), 0, 1);
+        property <float> b: !playing ? 1
+            : t-in < 1 ? 1 - t-in * t-in * (3 - 2 * t-in)
+            : t-out * t-out * (3 - 2 * t-out);
+        property <float> glow: !playing ? 1
+            : t-in <= 0 ? 1 - 0.45 * clamp((p - in-start + 0.1) / 0.1, 0, 1)
+            : t-in < 1 ? 0.55
+            : 0.55 + 0.45 * t-out;
+        property <angle> a: r.a + (playing ? sin(p * 900deg + i * 53deg) * 6deg * (1 - b) : 0deg);
+        property <angle> bend: r.bend * (1 + 2.5 * (1 - b));
+        property <float> r0: r.r0;
+        property <float> r1: r0 + (r.r1 - r.r0) * b;
+        property <float> rm: (r0 + r1) / 2;
+        width: root.width;
+        height: root.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        stroke: root.ray-color;
+        stroke-width: r.w * root.k * 1px;
+        stroke-line-cap: round;
+        visible: b > 0.03;
+        opacity: glow;
+        MoveTo { x: tx(r0 * cos(a), r0 * sin(a)); y: ty(r0 * sin(a)); }
+        QuadraticTo {
+            control-x: tx(rm * cos(a - bend * 0.6), rm * sin(a - bend * 0.6));
+            control-y: ty(rm * sin(a - bend * 0.6));
+            x: tx(r1 * cos(a + bend), r1 * sin(a + bend));
+            y: ty(r1 * sin(a + bend));
+        }
+    }
+
+    // лепестки складываются внутрь по очереди и так же по очереди распускаются
+    for q[j] in petals: Path {
+        property <float> c-t: clamp((p - j * 0.035) / 0.2, 0, 1);
+        property <float> o-t: clamp((p - 0.45 - j * 0.035) / 0.3, 0, 1);
+        property <float> b: !playing ? 1
+            : c-t < 1 ? 1 - c-t * c-t
+            : o-t <= 0 ? 0
+            : max(0, 1 + 2.2 * pow(o-t - 1, 3) + 1.2 * pow(o-t - 1, 2));
+        property <angle> a: q.a + (1 - b) * 24deg;
+        property <float> ox: q.r0 * cos(a);
+        property <float> oy: q.r0 * sin(a);
+        property <float> l: q.len * b;
+        property <float> c: cos(a);
+        property <float> s: sin(a);
+        width: root.width;
+        height: root.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        visible: b > 0.01;
+        fill: root.petal-color;
+        MoveTo { x: tx(ox, oy); y: ty(oy); }
+        CubicTo {
+            control-1-x: tx(ox + l * 0.1 * c + q.w1 * b * 1.1 * s, oy + l * 0.1 * s - q.w1 * b * 1.1 * c);
+            control-1-y: ty(oy + l * 0.1 * s - q.w1 * b * 1.1 * c);
+            control-2-x: tx(ox + l * 1.02 * c + q.w1 * b * 0.8 * s, oy + l * 1.02 * s - q.w1 * b * 0.8 * c);
+            control-2-y: ty(oy + l * 1.02 * s - q.w1 * b * 0.8 * c);
+            x: tx(ox + l * c - q.tip * s, oy + l * s + q.tip * c);
+            y: ty(oy + l * s + q.tip * c);
+        }
+        CubicTo {
+            control-1-x: tx(ox + l * 1.02 * c - q.w2 * b * 0.8 * s, oy + l * 1.02 * s + q.w2 * b * 0.8 * c);
+            control-1-y: ty(oy + l * 1.02 * s + q.w2 * b * 0.8 * c);
+            control-2-x: tx(ox + l * 0.1 * c - q.w2 * b * 1.1 * s, oy + l * 0.1 * s + q.w2 * b * 1.1 * c);
+            control-2-y: ty(oy + l * 0.1 * s + q.w2 * b * 1.1 * c);
+            x: tx(ox, oy);
+            y: ty(oy);
+        }
+        Close { }
+    }
+
+    Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        stroke: root.stick-color;
+        stroke-width: 11 * root.k * 1px;
+        stroke-line-cap: round;
+        MoveTo { x: tx(102 * cos(114deg), 102 * sin(114deg)); y: ty(102 * sin(114deg)); }
+        LineTo { x: tx(102 * cos(-66deg), 102 * sin(-66deg)); y: ty(102 * sin(-66deg)); }
+    }
+
+    if root.interactive: TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.play(); }
+    }
+}

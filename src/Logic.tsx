@@ -1,350 +1,202 @@
-import { useEffect, useState, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useState } from "react";
 import { emit, listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
-import { notify } from './Notifications';
-import { ZapretUtils } from "./ZapretUtils";
-import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { notify } from './Notifications';
+import { useZapret } from "./ZapretUtils";
+import { api, isNewerVersion, log, type AppInfo } from "./lib/api";
+import type { DeepLinkData } from "./modals/DeepLinkModal";
 
-const appWindow = getCurrentWindow();
+export { log };
 
-export function log(text: string) {
-    invoke('log', { text: text });
-}
+const VERSION_URL = "https://raw.githubusercontent.com/f1zzen/zust/main/version";
+const MAX_LOG_LINES = 300;
 
-export function Logic() {
-    const [activePage, setActivePage] = useState('home');
-    const handleSetActivePage = (page: string) => {
-        setActivePage(page);
-        window.dispatchEvent(new CustomEvent('page-switch', { detail: page }));
-    };
-    const [isPinned, setIsPinned] = useState(() => {
-        return localStorage.getItem('window_pinned') === 'true';
-    });
+export type PageId = 'home' | 'settings' | 'proxy' | 'editor' | 'logs' | 'credits';
+export type ModalId =
+    | 'strategy' | 'convert' | 'ipset' | 'hosts' | 'proxy' | 'news'
+    | 'deeplink' | 'hotspot' | 'sponsors' | 'community';
+
+export function useApp() {
+    const zapret = useZapret();
+    const [activePage, setActivePageState] = useState<PageId>('home');
+    const [modal, setModal] = useState<ModalId | null>(null);
+    const [isPinned, setIsPinned] = useState(() => localStorage.getItem('window_pinned') === 'true');
     const [logs, setLogs] = useState<string[]>([]);
-    const [hoverText, setHoverText] = useState<string | null>(null);
-    const [lastText, setLastText] = useState('');
-    const [isSelectorOpen, setIsSelectorOpen] = useState(false);
-    const [isConvertOpen, setIsConvertOpen] = useState(false);
-    const [isIpsetModalOpen, setIsIpsetModalOpen] = useState(false);
-    const [isHostsModalOpen, setIsHostsModalOpen] = useState(false);
-    const [isLegacyOpen, setIsLegacyOpen] = useState(false);
+    const [torLogs, setTorLogs] = useState<string[]>([]);
+    const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+    const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+    const [updatableStrats, setUpdatableStrats] = useState<string[]>([]);
     const [customIpsetFiles, setCustomIpsetFiles] = useState<string[]>([]);
     const [ipsetView, setIpsetView] = useState<'main' | 'custom'>('main');
     const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
-    const [updatableStrats, setUpdatableStrats] = useState<string[]>([]);
-    const [isProxyModalOpen, setIsProxyModalOpen] = useState(false);
-    const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
-    const [isDeepLinkModalOpen, setIsDeepLinkModalOpen] = useState(false);
-    const [isSponsorsModalOpen, setIsSponsorsModalOpen] = useState(false);
-    const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
-    const [deepLinkData, setDeepLinkData] = useState<{
-        type: 'strategy' | 'ipset' | 'hostlist' | 'configure_zapret';
-        payload: string;
-        name?: string;
-    } | null>(null);
-    const [torLogs, setTorLogs] = useState<string[]>([]);
-    const logStart = useRef<HTMLDivElement>(null);
-    const [isHotspotOpen, setIsHotspotOpen] = useState(false);
-    const [isHotspotActive, setIsHotspotActive] = useState(false);
-    const [activeHotspotPort, setActiveHotspotPort] = useState<number | null>(null);
+    const [deepLinkData, setDeepLinkData] = useState<DeepLinkData | null>(null);
+    const [hotspotPort, setHotspotPort] = useState<number | null>(null);
 
-    const zapret = ZapretUtils();
-    const handleHover = (text: string | null) => {
-        setHoverText(text);
-        if (text) {
-            setLastText(text);
-        }
-    };
-    const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
-    const [isUpdateChecked, setIsUpdateChecked] = useState(false);
+    const setActivePage = useCallback((page: PageId) => {
+        setActivePageState(page);
+        window.dispatchEvent(new CustomEvent('page-switch', { detail: page }));
+    }, []);
 
-    const checkUpdate = async () => {
+    const openModal = useCallback((id: ModalId) => setModal(id), []);
+    const closeModal = useCallback(() => setModal(null), []);
+
+    const checkUpdate = async (currentVersion: string) => {
         try {
-            const currentVersion = await getVersion();
-            const url = "https://raw.githubusercontent.com/f1zzen/zust/main/version";
-            const res = await fetch(`${url}?t=${Date.now()}`);
-            const latestVersion = res.ok ? (await res.text()).trim() : null;
-
-            if (latestVersion) {
-                const c = currentVersion.split('.').map(Number);
-                const l = latestVersion.split('.').map(Number);
-
-                let isNew = false;
-                for (let i = 0; i < 3; i++) {
-                    if (l[i] > c[i]) { isNew = true; break; }
-                    if (l[i] < c[i]) break;
-                }
-
-                if (isNew) {
-                    setUpdateAvailable(latestVersion);
-                    notify(`Доступна новая версия: v${latestVersion}`, "info");
-                }
+            const res = await fetch(`${VERSION_URL}?t=${Date.now()}`, { cache: 'no-store' });
+            const latest = res.ok ? (await res.text()).trim() : null;
+            if (latest && isNewerVersion(latest, currentVersion)) {
+                setUpdateAvailable(latest);
+                notify(`Доступна новая версия: v${latest}`, "info");
             }
         } catch (e) {
             log("Ошибка проверки версии: " + e);
         } finally {
-            setIsUpdateChecked(true);
-            setIsNewsModalOpen(true);
+            // новости сами закроются, если их нет или они уже прочитаны
+            setModal((m) => m ?? 'news');
         }
     };
 
     useEffect(() => {
-        let intervalId: number | null = null;
-
-        const refreshSettings = async () => {
-            try {
-                const updated = await invoke<any>('load_settings');
-                document.body.classList.toggle('no-animations', updated.optimizationEnabled === true);
-            } catch (e) {
-                console.error("Failed to refresh settings", e);
-            }
-        };
-
-        const initPin = async () => {
-            const savedPin = localStorage.getItem('window_pinned') === 'true';
-
-            if (savedPin) {
-                await appWindow.setAlwaysOnTop(true);
-                setIsPinned(true);
-            } else {
-                const actuallyPinned = await appWindow.isAlwaysOnTop();
-                setIsPinned(actuallyPinned);
-            }
-        };
-
-        initPin();
-
-        window.addEventListener('settings-changed', refreshSettings);
-
+        const win = getCurrentWindow();
+        if (localStorage.getItem('window_pinned') === 'true') {
+            win.setAlwaysOnTop(true);
+        }
 
         const initialize = async () => {
-            await invoke('sync_zapret_files');
-
+            const info = await api.appInfo();
+            setAppInfo(info);
             try {
-                const s = await invoke<any>('load_settings');
-                if (s.optimizationEnabled) {
-                    document.body.classList.add('no-animations');
-                } else {
-                    document.body.classList.remove('no-animations');
-                }
+                await api.syncZapretFiles();
             } catch (e) {
-                log("Initial settings load failed: " + e);
+                log("Ошибка синхронизации файлов zapret: " + e);
             }
-
-            const hasLegacy = await invoke('check_legacy_folder');
-            if (hasLegacy) {
-                setIsLegacyOpen(true);
-                await emit("app_ready");
-                return;
-            }
-
             await Promise.all([
-                zapret.init(),
-                invoke<string[]>('check_strategy_updates')
-                    .then(list => setUpdatableStrats(list))
-                    .catch(e => log("strategy check failed: " + e))
+                zapret.init().catch((e) => log("zapret init: " + e)),
+                api.checkStrategyUpdates().then(setUpdatableStrats).catch((e) => log("Проверка стратегий: " + e)),
+                api.hotspotPort().then(setHotspotPort).catch(() => { }),
             ]);
             await emit("app_ready");
-            checkUpdate();
-            invoke<boolean>("check_winws_update").catch(() => { });
-            log("Запускаем обновления TLS под MAX");
-            try {
-                const result = await invoke<string>('update_tls_bin');
-                log(result);
-            } catch (e) {
-                log("Ошибка при обновлении tls " + e);
-            }
-        };
 
+            checkUpdate(info.version);
+            // фоновое обновление .bin — интерфейс его не ждёт.
+            // Движок (winws/nfqws) из интернета не обновляется: только вместе с релизом Zust.
+            api.updateTlsBin().then(log).catch((e) => log("Обновление bin-файлов: " + e));
+        };
         initialize();
 
-        const handleConfigureZapret = (params: Record<string, string>) => {
-            const { strategy, ipset_config, game_filter, restart } = params;
-
-            setDeepLinkData({
-                type: 'configure_zapret',
-                payload: JSON.stringify({ strategy, ipset_config, game_filter, restart }),
-                name: 'Глубокая настройка'
-            });
-            setIsDeepLinkModalOpen(true);
-        };
-
-        const handleAddAction = (params: Record<string, string>) => {
-            const { url, type, name: paramName } = params;
-            const validTypes = ['strategy', 'ipset', 'hostlist'];
-            const incomingType = type?.toLowerCase();
-
-            if (url && validTypes.includes(incomingType)) {
-                let finalName: string;
-                if (incomingType === 'hostlist') {
-                    finalName = 'list-general.txt';
-                } else {
-                    const fileName = url.split('/').pop()?.split('.')[0] || 'imported_file';
-                    finalName = paramName || fileName;
-                }
-
-                setDeepLinkData({
-                    type: incomingType as any,
-                    payload: url,
-                    name: finalName
-                });
-                setIsDeepLinkModalOpen(true);
-            }
-        };
-
-        const unlistenDeepLink = listen<{ action: string, params: Record<string, string> }>('zust-deeplink', async (event) => {
-            const { action, params } = event.payload;
-
+        const unlistenDeepLink = listen<{ action: string, params: Record<string, string> }>('zust-deeplink', async ({ payload }) => {
+            const { action, params } = payload;
             switch (action) {
                 case 'restore_zapret':
-                    setDeepLinkData({
-                        type: 'restore_zapret' as any,
-                        payload: 'all_files',
-                    });
-                    setIsDeepLinkModalOpen(true);
+                    setDeepLinkData({ type: 'restore_zapret', payload: 'all_files' });
+                    setModal('deeplink');
                     break;
                 case 'flush_dns':
                     try {
-                        const result = await invoke<string>('flush_dns');
-                        notify("Кэш ДНС успешно очищен", "success");
-                        log(result);
+                        log(await api.flushDns());
+                        notify("Кэш DNS очищен", "success");
                     } catch (e) {
-                        notify("Ошибка cache-DNS", "error");
-                        log(`cache-DNS err ${e}`);
+                        notify(`Ошибка очистки DNS: ${e}`, "error");
                     }
                     break;
-                case 'add':
-                    handleAddAction(params);
+                case 'add': {
+                    const type = params.type?.toLowerCase();
+                    if (!params.url || !['strategy', 'ipset', 'hostlist'].includes(type)) break;
+                    const fileName = params.url.split('/').pop()?.split('.')[0] || 'imported_file';
+                    setDeepLinkData({
+                        type: type as DeepLinkData['type'],
+                        payload: params.url,
+                        name: type === 'hostlist' ? 'list-general.txt' : (params.name || fileName),
+                    });
+                    setModal('deeplink');
                     break;
-
-                case 'configure_zapret':
-                    handleConfigureZapret(params);
+                }
+                case 'configure_zapret': {
+                    const { strategy, ipset_config, game_filter, restart } = params;
+                    setDeepLinkData({
+                        type: 'configure_zapret',
+                        payload: JSON.stringify({ strategy, ipset_config, game_filter, restart }),
+                        name: 'Глубокая настройка',
+                    });
+                    setModal('deeplink');
                     break;
+                }
+                // пасхалки
                 case 'milana_hametova':
-                    openUrl('https://i.imgur.com/CGqXjZB.png');
+                    api.openLink('https://i.imgur.com/CGqXjZB.png');
                     break;
                 case 'net':
-                    openUrl('https://i.imgur.com/GuuLZta.png');
+                    api.openLink('https://i.imgur.com/GuuLZta.png');
                     break;
                 default:
                     log(`Команда ${action} не распознана`);
             }
         });
 
-        const unlistenLog = listen<string>('log-event', (event) => {
-            const rawLog = event.payload;
-
-            if (rawLog.includes('[TOR]')) {
-                setTorLogs((prev) => [rawLog, ...prev.slice(0, 49)]);
-            } else {
-                setLogs((prev) => [rawLog, ...prev.slice(0, 49)]);
-            }
+        const unlistenLog = listen<string>('log-event', ({ payload }) => {
+            const add = (prev: string[]) => [payload, ...prev.slice(0, MAX_LOG_LINES - 1)];
+            if (payload.includes('[TOR]')) setTorLogs(add);
+            else setLogs(add);
         });
 
-        const handleContextMenu = (e: MouseEvent) => e.preventDefault();
-        window.addEventListener('contextmenu', handleContextMenu);
+        const blockContextMenu = (e: MouseEvent) => e.preventDefault();
+        window.addEventListener('contextmenu', blockContextMenu);
+
+        if (import.meta.env.DEV) {
+            (window as any).testNewsModal = () => {
+                localStorage.removeItem("last_seen_news_id");
+                setModal('news');
+            };
+        }
 
         return () => {
-            if (intervalId) clearInterval(intervalId);
             unlistenDeepLink.then((f) => f());
             unlistenLog.then((f) => f());
-            window.removeEventListener('contextmenu', handleContextMenu);
-            window.removeEventListener('settings-changed', refreshSettings);
+            window.removeEventListener('contextmenu', blockContextMenu);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    const actions = {
-        changeIpsetMode: async (mode: any, fileName: string | null = null) => {
-            const val = mode === 'Any' ? 'any' : mode === 'None' ? 'none' : (fileName || 'any');
-            zapret.setSelectedIpset(val);
-            localStorage.setItem("selected_ipset", val);
-            if (zapret.status === 'running') await zapret.startProcess(undefined, val);
-        },
-        handlePickFiles: async () => {
-            const selected = await open({ multiple: true, filters: [{ name: 'Batch', extensions: ['bat'] }] });
-            if (selected) {
-                try {
-                    await invoke('convert_multiple_bats', { paths: Array.isArray(selected) ? selected : [selected] });
-                    setIsConvertOpen(false);
-                    const list = await invoke<string[]>('get_list_strategies');
-                    zapret.setConfigs(list);
-                    notify("Конвертация завершена!", "success");
-                } catch (e) { notify("Ошибка при конвертации", "error"); }
-            }
-        },
-        addIp: async (ip: string) => {
-            const targetFile = (zapret.selectedIpset === 'any' || zapret.selectedIpset === 'none' || !zapret.selectedIpset)
-                ? 'ipset-all.txt'
-                : zapret.selectedIpset;
 
+    const actions = {
+        changeIpsetMode: async (mode: 'Any' | 'None' | 'Custom', fileName?: string) => {
+            const value = mode === 'Any' ? 'any' : mode === 'None' ? 'none' : (fileName || 'any');
+            zapret.setIpset(value);
+            if (zapret.status === 'running') await zapret.start(undefined, value);
+        },
+        pickBatFiles: async () => {
+            const selected = await open({ multiple: true, filters: [{ name: 'Batch', extensions: ['bat'] }] });
+            if (!selected) return;
             try {
-                await invoke('add_ip', { fileName: targetFile, ip });
-                const message = `resolver - ip ${ip} -> ${targetFile}`;
-                log(message);
-                if (zapret.status === 'running') {
-                    await zapret.stopProcess();
-                    await zapret.startProcess();
-                }
-                notify(`Добавлено в ${targetFile}`, "success");
+                const count = await api.convertBats(Array.isArray(selected) ? selected : [selected]);
+                closeModal();
+                await zapret.refreshList();
+                notify(count ? `Сконвертировано: ${count}` : "В файлах не найден запуск winws.exe", count ? "success" : "error");
             } catch (e) {
-                notify("Ошибка при записи IP", "error");
-                log("ipset err " + e);
+                notify(`Ошибка при конвертации: ${e}`, "error");
             }
         },
-        handleStrategyChange: async (newName: string) => {
-            setIsSelectorOpen(false);
-            zapret.setSelectedConfig(newName);
-            localStorage.setItem("selected_strategy", newName);
-            await zapret.startProcess(newName);
+        selectStrategy: async (name: string) => {
+            closeModal();
+            zapret.setStrategy(name);
+            await zapret.start(name);
         },
         togglePin: async () => {
-            const nextValue = !isPinned;
-            setIsPinned(nextValue);
-            await appWindow.setAlwaysOnTop(nextValue);
-            localStorage.setItem('window_pinned', String(nextValue));
+            const next = !isPinned;
+            setIsPinned(next);
+            await getCurrentWindow().setAlwaysOnTop(next);
+            localStorage.setItem('window_pinned', String(next));
         },
-        loadIpsetConfigs: async () => {
-            const files = await invoke<string[]>('get_custom_configs');
-            setCustomIpsetFiles(files);
-        },
-        stopHotspot: async () => {
-            try {
-                await invoke("stop_hotspot");
-                setIsHotspotActive(false);
-                setActiveHotspotPort(null);
-                notify("Точка доступа закрыта", "success");
-            } catch (e) {
-                log("frp ->>> err start" + e);
-            }
-        },
-        handleHotspotLaunched: (port: number) => {
-            setIsHotspotActive(true);
-            setActiveHotspotPort(port);
-        },
-        toggleHotspot: async () => {
-            if (isHotspotActive) {
-                await actions.stopHotspot();
-            } else {
-                try {
-                    const port = 7291;
-                    await invoke("start_hotspot", { port });
-                    actions.handleHotspotLaunched(port);
-                    notify("Прокси запущен", "success");
-                } catch (e) {
-                    log("Ошибка запуска: " + e);
-                    notify("Не удалось запустить прокси", "error");
-                }
-            }
-        }
+        loadIpsetConfigs: async () => setCustomIpsetFiles(await api.customIpsets()),
     };
 
     return {
-        state: {
-            activePage, isPinned, logs, hoverText, lastText, isSelectorOpen, isConvertOpen, isIpsetModalOpen, isHostsModalOpen, customIpsetFiles, ipsetView, hoveredDesc, zapret, logStart, isLegacyOpen, updatableStrats, isProxyModalOpen, isNewsModalOpen, isDeepLinkModalOpen, updateAvailable, deepLinkData, isUpdateChecked, torLogs, isHotspotOpen, isHotspotActive, activeHotspotPort, isSponsorsModalOpen, isCommunityModalOpen
-        },
-        prefs: { setActivePage: handleSetActivePage, setHoverText: handleHover, setLastText, setIsSelectorOpen, setIsConvertOpen, setIsIpsetModalOpen, setIsHostsModalOpen, setIpsetView, setHoveredDesc, setUpdatableStrats, setIsProxyModalOpen, setIsNewsModalOpen, setIsDeepLinkModalOpen, setDeepLinkData, setIsHotspotOpen, setIsHotspotActive, setActiveHotspotPort, setIsSponsorsModalOpen, setIsCommunityModalOpen },
-        actions
+        zapret, activePage, setActivePage, modal, openModal, closeModal,
+        isPinned, logs, torLogs, appInfo, updateAvailable,
+        updatableStrats, setUpdatableStrats, customIpsetFiles, ipsetView, setIpsetView,
+        hoveredDesc, setHoveredDesc, deepLinkData, hotspotPort, setHotspotPort,
+        actions,
     };
 }
+
+export type AppState = ReturnType<typeof useApp>;

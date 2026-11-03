@@ -30,6 +30,13 @@ jobs:
         run: |
           v=$(grep -m1 '^version' v3/Cargo.toml | cut -d'"' -f2)
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Тег $GITHUB_REF_NAME, а в Cargo.toml $v"; exit 1; }
+      - name: Все .bin из стратегий лежат в zapret/bin
+        run: |
+          miss=0
+          for b in $(grep -ohE '[A-Za-z0-9_.]+\.bin' src-tauri/zapret/strategies/* | sort -u); do
+            [ -f "src-tauri/zapret/bin/$b" ] || { echo "Нет файла $b"; miss=1; }
+          done
+          exit $miss
       - name: Системные библиотеки
         run: |
           sudo apt-get update

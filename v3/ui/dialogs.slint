@@ -599,3 +599,172 @@ export component TestDialog inherits Dialog {
         }
     }
 }
+
+// Выбор цвета: поле насыщенность/яркость, полоса оттенка, #hex. Цвет меняется сразу, "Отмена" возвращает прежний.
+export component ColorDialog inherits Dialog {
+    open: Ui.dialog == 6;
+    box-height: 470px;
+    title: Ui.color-target == "accent" ? "Свой акцент" : "Свой цвет";
+    property <float> hue;
+    property <float> sat;
+    property <float> val;
+    property <color> before;
+    property <color> value: hsv(hue, sat, val);
+
+    function get(t: string) -> color {
+        if t == "accent" { return Theme.accent; }
+        if t == "background" { return Theme.background; }
+        if t == "surface" { return Theme.surface; }
+        if t == "surface-high" { return Theme.surface-high; }
+        if t == "on-surface" { return Theme.on-surface; }
+        if t == "on-surface-variant" { return Theme.on-surface-variant; }
+        if t == "outline" { return Theme.outline; }
+        if t == "primary" { return Theme.primary; }
+        if t == "on-primary" { return Theme.on-primary; }
+        if t == "primary-container" { return Theme.primary-container; }
+        if t == "on-primary-container" { return Theme.on-primary-container; }
+        if t == "success" { return Theme.success; }
+        return Theme.error;
+    }
+    function put(t: string, c: color) {
+        if t == "accent" { Theme.accent = c; }
+        else if t == "background" { Theme.c-background = c; Theme.h-background = true; }
+        else if t == "surface" { Theme.c-surface = c; Theme.h-surface = true; }
+        else if t == "surface-high" { Theme.c-surface-high = c; Theme.h-surface-high = true; }
+        else if t == "on-surface" { Theme.c-on-surface = c; Theme.h-on-surface = true; }
+        else if t == "on-surface-variant" { Theme.c-on-surface-variant = c; Theme.h-on-surface-variant = true; }
+        else if t == "outline" { Theme.c-outline = c; Theme.h-outline = true; }
+        else if t == "primary" { Theme.c-primary = c; Theme.h-primary = true; }
+        else if t == "on-primary" { Theme.c-on-primary = c; Theme.h-on-primary = true; }
+        else if t == "primary-container" { Theme.c-primary-container = c; Theme.h-primary-container = true; }
+        else if t == "on-primary-container" { Theme.c-on-primary-container = c; Theme.h-on-primary-container = true; }
+        else if t == "success" { Theme.c-success = c; Theme.h-success = true; }
+        else if t == "error" { Theme.c-error = c; Theme.h-error = true; }
+    }
+    function load(c: color) {
+        hue = c.to-hsv().hue;
+        sat = c.to-hsv().saturation;
+        val = c.to-hsv().value;
+        hex.text = Backend.color-hex(c);
+    }
+    function changed() {
+        put(Ui.color-target, value);
+        hex.text = Backend.color-hex(value);
+    }
+    // окно открылось - берём текущий цвет
+    changed open => {
+        if self.open {
+            before = get(Ui.color-target);
+            load(before);
+        }
+    }
+
+    sv := Rectangle {
+        height: 190px;
+        border-radius: Theme.radius-s;
+        clip: true;
+        background: hsv(hue, 1, 1);
+        Rectangle { background: @linear-gradient(90deg, #ffffff 0%, #ffffff00 100%); }
+        Rectangle { background: @linear-gradient(0deg, #000000 0%, #00000000 100%); }
+        Rectangle {
+            x: sat * parent.width - 9px;
+            y: (1 - val) * parent.height - 9px;
+            width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            border-width: 3px;
+            border-color: #ffffff;
+            background: value;
+            drop-shadow-blur: 4px;
+            drop-shadow-color: #00000080;
+        }
+        TouchArea {
+            mouse-cursor: crosshair;
+            function pick() {
+                sat = max(0, min(1, self.mouse-x / self.width));
+                val = max(0, min(1, 1 - self.mouse-y / self.height));
+                changed();
+            }
+            pointer-event(e) => { if e.kind == PointerEventKind.down { pick(); } }
+            moved => { if self.pressed { pick(); } }
+        }
+    }
+    hb := Rectangle {
+        height: 22px;
+        border-radius: 11px;
+        background: @linear-gradient(90deg, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+        Rectangle {
+            x: hue / 360 * (parent.width - 22px);
+            width: 22px;
+            height: 22px;
+            border-radius: 11px;
+            border-width: 3px;
+            border-color: #ffffff;
+            background: hsv(hue, 1, 1);
+            drop-shadow-blur: 4px;
+            drop-shadow-color: #00000080;
+        }
+        TouchArea {
+            mouse-cursor: pointer;
+            function pick() {
+                hue = max(0, min(359.9, (self.mouse-x - 11px) / (self.width - 22px) * 360));
+                changed();
+            }
+            pointer-event(e) => { if e.kind == PointerEventKind.down { pick(); } }
+            moved => { if self.pressed { pick(); } }
+        }
+    }
+    HorizontalLayout {
+        spacing: 12px;
+        Rectangle {
+            width: 42px;
+            height: 42px;
+            border-radius: Theme.radius-s;
+            background: value;
+            border-width: 1px;
+            border-color: Theme.outline;
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            height: 42px;
+            border-radius: Theme.pill-buttons ? 21px : Theme.button-radius;
+            background: Theme.classic ? #ffffff0d : Theme.surface-high;
+            border-width: hex.has-focus ? 2px : 1px;
+            border-color: Backend.hex-valid(hex.text) ? (hex.has-focus ? Theme.primary : Theme.outline) : Theme.error;
+            hex := TextInput {
+                x: 16px;
+                width: parent.width - 32px;
+                height: parent.height;
+                vertical-alignment: center;
+                font-size: 14px;
+                color: Theme.classic ? #ffffff : Theme.on-surface;
+                single-line: true;
+                edited => {
+                    if Backend.hex-valid(self.text) {
+                        load(Backend.hex-color(self.text));
+                        put(Ui.color-target, Backend.hex-color(self.text));
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        alignment: end;
+        spacing: 8px;
+        Btn {
+            text: "Отмена";
+            kind: "text";
+            clicked => {
+                put(Ui.color-target, before);
+                Backend.dialog-close();
+            }
+        }
+        Btn {
+            text: "Готово";
+            clicked => {
+                Backend.settings-changed();
+                Backend.dialog-close();
+            }
+        }
+    }
+}

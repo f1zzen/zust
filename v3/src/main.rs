@@ -13,6 +13,7 @@ mod mac_links;
 mod notify;
 mod scare;
 mod single;
+mod styles;
 
 /// Настройки интерфейса v3. Общие с Zust 2 настройки (автозапуск, трей, GameFilter…)
 /// хранит ядро в своём settings.json.
@@ -37,6 +38,8 @@ pub struct Config {
     pub launcher_asked: bool,
     /// последняя показанная новость (чтобы не открывать её при каждом запуске)
     pub news_seen: Option<String>,
+    /// свой стиль поверх темы
+    custom: styles::Custom,
 }
 
 /// Классика
@@ -110,6 +113,12 @@ fn main() -> Result<(), slint::PlatformError> {
     zust_core::paths::init(backend::data_dir(), backend::resource_dir());
     zust_core::logger::init();
     zust_core::settings::migrate_legacy();
+    // ссылки zust:// ведут на этот exe (на Windows - и поверх записи Zust 2)
+    std::thread::spawn(|| {
+        if let Err(e) = zust_core::platform::register_url_protocol() {
+            eprintln!("zust:// не зарегистрирован: {e}");
+        }
+    });
 
     let cfg = Config::load();
     let renderer = select_renderer(&cfg);
@@ -142,6 +151,7 @@ fn main() -> Result<(), slint::PlatformError> {
         theme.set_accent(slint::Color::from_argb_encoded(a));
     }
 
+    styles::connect(&ui, &cfg.custom);
     let be = ui.global::<Backend>();
     be.set_renderer(
         match renderer {
@@ -173,6 +183,7 @@ fn main() -> Result<(), slint::PlatformError> {
             c.no_animations = !t.get_animations();
             c.nav_right = t.get_nav_side() == 1;
             c.renderer = b.get_renderer_choice();
+            c.custom = styles::read(&ui);
         });
         backend::apply_core_settings(&ui);
     });

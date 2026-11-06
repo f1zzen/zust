@@ -1,7 +1,7 @@
 // "Классика" - интерфейс Zust 2.
 
 import { Theme } from "theme.slint";
-import { Icons, Icon } from "components.slint";
+import { Icons, Icon, BgImage } from "components.slint";
 import { MorphShape } from "@gen/morph.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Backend, Ui } from "globals.slint";
@@ -401,6 +401,8 @@ export component Dock inherits Rectangle {
     background: #0a0514d9;
     border-width: 1px;
     border-color: #ffffff1a;
+    clip: true;
+    BgImage { width: parent.width; height: parent.height; source: Theme.bg-panel; }
     col := VerticalLayout {
         padding: 8px;
         spacing: 4px;

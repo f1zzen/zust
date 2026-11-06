@@ -105,7 +105,7 @@ jobs:
             $env:PATH += ";${env:ProgramFiles(x86)}\NSIS"
           }
           $v = (Select-String -Path v3/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
-          makensis /V2 "/DVERSION=$v" "/DSRC=$PWD\$d" "/DOUT=$PWD\Z.UST-setup.exe" v3/packaging/windows/installer.nsi
+          makensis /V2 /INPUTCHARSET UTF8 "/DVERSION=$v" "/DSRC=$PWD\$d" "/DOUT=$PWD\Z.UST-setup.exe" v3/packaging/windows/installer.nsi
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Архив (Linux)
         if: runner.os == 'Linux'
@@ -137,7 +137,7 @@ jobs:
   macos:
     name: Сборка (macOS)
     needs: check
-    runs-on: macos-14
+    runs-on: macos-15
     # macOS пока не проверен на живом Mac: ошибка здесь не мешает релизу Windows и Linux
     continue-on-error: true
     env:

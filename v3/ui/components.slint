@@ -200,6 +200,8 @@ export component SettingRow inherits Rectangle {
 export component Segmented inherits Rectangle {
     in property <[string]> items;
     in-out property <int> selected;
+    // true - выбор задаёт только привязка selected (её не перезаписываем при нажатии)
+    in property <bool> controlled: false;
     callback changed(int);
     property <length> r: Theme.pill-buttons ? self.height / 2 : Theme.button-radius;
     height: 42px;
@@ -241,7 +243,7 @@ export component Segmented inherits Rectangle {
             ta := TouchArea {
                 mouse-cursor: pointer;
                 clicked => {
-                    root.selected = i;
+                    if !root.controlled { root.selected = i; }
                     root.changed(i);
                 }
             }
@@ -312,4 +314,21 @@ export component SectionTitle inherits Text {
     font-size: Theme.mono ? 12px : 13px;
     font-weight: 700;
     letter-spacing: Theme.mono ? 1px : 0.3px;
+}
+
+// Картинка фона из своего стиля: на весь родитель, с затемнением цветом фона темы.
+export component BgImage inherits Rectangle {
+    in property <image> source;
+    visible: Theme.custom && source.width > 0;
+    Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.source;
+        image-fit: cover;
+    }
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: Theme.background.transparentize(1 - Theme.bg-dim);
+    }
 }

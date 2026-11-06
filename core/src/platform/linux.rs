@@ -255,12 +255,13 @@ pub fn remove_launcher() -> Result<(), String> {
 }
 
 /// Если ярлык уже есть, но устарел (Z.UST переместили - например, новая версия
-/// AppImage в другой папке, - или изменилось содержимое ярлыка), тихо обновляем его.
+/// AppImage в другой папке, - или изменились ярлык или значок), тихо обновляем его.
 pub fn refresh_launcher(icon_png: &[u8]) {
     let Ok(content) = fs::read_to_string(launcher_file()) else {
         return;
     };
-    if content != launcher_entry() {
+    let icon_old = fs::read(launcher_icon()).ok().as_deref() != Some(icon_png);
+    if content != launcher_entry() || icon_old {
         let _ = install_launcher(icon_png);
     }
 }

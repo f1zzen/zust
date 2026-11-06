@@ -137,7 +137,7 @@ jobs:
   macos:
     name: Сборка (macOS)
     needs: check
-    runs-on: macos-14
+    runs-on: macos-15
     # macOS пока не проверен на живом Mac: ошибка здесь не мешает релизу Windows и Linux
     continue-on-error: true
     env:

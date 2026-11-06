@@ -138,6 +138,19 @@ export global Backend {
     callback hotspot-toggle();
     callback select-ipset(int);
     callback open-folder(string);
+    // свой стиль: "#rrggbb" <-> цвет, файлы в папке themes
+    pure callback color-hex(color) -> string;
+    pure callback hex-valid(string) -> bool;
+    pure callback hex-color(string) -> color;
+    in property <[string]> style-files;
+    callback style-load(int);
+    callback style-save();
+    callback styles-reload();
+    // свой шрифт (.ttf/.otf) и картинки фона: "main" - окно, "panel" - панель навигации
+    in property <string> font-file;
+    callback font-pick();
+    callback bg-pick(string);
+    callback bg-clear(string);
     callback apply-updates();
     callback import-bat();
     callback launcher-set(bool);
@@ -179,8 +192,10 @@ export global Ui {
     // окно выбора стратегии (в "Классике", как в Zust 2)
     in-out property <bool> picker: false;
     // открытое окно: 0 - нет, 1 - hosts (DNS Override), 2 - ссылка zust://, 3 - свои списки,
-    // 4 - новости, спонсоры, сообщество, 5 - тест стратегий
+    // 4 - новости, спонсоры, сообщество, 5 - тест стратегий, 6 - выбор цвета
     in-out property <int> dialog: 0;
+    // что красит окно выбора цвета: "accent" или имя цвета темы ("background", "primary"...)
+    in-out property <string> color-target;
     // скример вместо знака Z.UST: 0 - нет, 1..12 - картинка
     in-out property <int> scare: 0;
 }

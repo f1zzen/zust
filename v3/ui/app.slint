@@ -1,6 +1,6 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { Icons, Icon, Btn, Card, Switch, SettingRow, Segmented, Chip, Choice, SectionTitle } from "components.slint";
+import { Icons, Icon, Btn, Card, Switch, SettingRow, Segmented, Chip, Choice, SectionTitle, BgImage } from "components.slint";
 import { MorphShape } from "@gen/morph.slint";
 import { Backend, Ui } from "globals.slint";
 import { ClassicHome, ClassicBackground, Dock, StrategyModal, ClassicStrategyItem } from "classic.slint";
@@ -8,7 +8,7 @@ import { PowerButton } from "power.slint";
 import { MarkOrScare } from "scare.slint";
 import { ProxyPage } from "proxy.slint";
 import { ZustTray } from "tray.slint";
-import { HostsDialog, LinkDialog, ListsDialog, AboutDialog, TestDialog } from "dialogs.slint";
+import { HostsDialog, LinkDialog, ListsDialog, AboutDialog, TestDialog, ColorDialog } from "dialogs.slint";
 import { Toasts } from "toasts.slint";
 
 // шрифты вшиваются в исполняемый файл - окно не ждёт загрузки и сети
@@ -499,6 +499,16 @@ component NavRow inherits Rectangle {
 }
 
 component SettingsPage inherits ScrollView {
+    function reset(key: string) {
+        if key == "background" { Theme.h-background = false; }
+        if key == "surface" { Theme.h-surface = false; }
+        if key == "surface-high" { Theme.h-surface-high = false; }
+        if key == "on-surface" { Theme.h-on-surface = false; }
+        if key == "on-surface-variant" { Theme.h-on-surface-variant = false; }
+        if key == "primary" { Theme.h-primary = false; }
+        if key == "primary-container" { Theme.h-primary-container = false; }
+        Backend.settings-changed();
+    }
     VerticalLayout {
         alignment: start;
         padding: 28px;
@@ -543,6 +553,187 @@ component SettingsPage inherits ScrollView {
                                 Backend.settings-changed();
                             }
                         }
+                    }
+                    // свой акцент: радужный кружок, внутри - текущий цвет, если он не из списка
+                    Rectangle {
+                        property <bool> own: Theme.accent != #8e6cef && Theme.accent != #c96442 && Theme.accent != #4f8cf7
+                            && Theme.accent != #2fb38c && Theme.accent != #e8833a && Theme.accent != #e05584 && Theme.accent != #9aa0a6;
+                        width: 36px;
+                        height: 36px;
+                        border-radius: Theme.lite || Theme.mono ? 8px : 18px;
+                        border-width: own ? 3px : 0px;
+                        border-color: Theme.on-surface;
+                        transform-scale: own-ta.has-hover ? 1.1 : 1;
+                        animate transform-scale { duration: Theme.fast; }
+                        // картинкой: программная отрисовка не скругляет conic-gradient
+                        if !Theme.lite && !Theme.mono: Image {
+                            // внутри рамки, когда выбран свой цвет
+                            width: parent.width - 2 * parent.border-width - (parent.own ? 2px : 0px);
+                            height: self.width;
+                            source: @image-url("rainbow.png");
+                        }
+                        if Theme.lite || Theme.mono: Rectangle {
+                            background: @conic-gradient(#ff0000 0deg, #ffff00 60deg, #00ff00 120deg, #00ffff 180deg, #0000ff 240deg, #ff00ff 300deg, #ff0000 360deg);
+                        }
+                        Rectangle {
+                            width: 18px;
+                            height: 18px;
+                            border-radius: Theme.lite || Theme.mono ? 4px : 9px;
+                            background: parent.own ? Theme.accent : Theme.surface;
+                        }
+                        own-ta := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                Ui.color-target = "accent";
+                                Ui.dialog = 6;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Card {
+            VerticalLayout {
+                alignment: start;
+                SettingRow {
+                    title: "Свой стиль";
+                    hint: "Свои цвета, скругление и шрифт поверх выбранной темы";
+                    checked <=> Theme.custom;
+                    toggled => { Backend.settings-changed(); }
+                }
+                if Theme.custom: VerticalLayout {
+                    padding: 18px;
+                    padding-top: 4px;
+                    spacing: 10px;
+                    for row in [
+                        { key: "background", name: "Фон", set: Theme.h-background, c: Theme.background },
+                        { key: "surface", name: "Карточки", set: Theme.h-surface, c: Theme.surface },
+                        { key: "surface-high", name: "Кнопки и поля", set: Theme.h-surface-high, c: Theme.surface-high },
+                        { key: "on-surface", name: "Текст", set: Theme.h-on-surface, c: Theme.on-surface },
+                        { key: "on-surface-variant", name: "Подписи", set: Theme.h-on-surface-variant, c: Theme.on-surface-variant },
+                        { key: "primary", name: "Главный цвет", set: Theme.h-primary, c: Theme.primary },
+                        { key: "primary-container", name: "Выбранное", set: Theme.h-primary-container, c: Theme.primary-container },
+                    ]: HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                            text: row.name;
+                            color: Theme.on-surface;
+                            font-size: 14px;
+                        }
+                        if row.set: Btn {
+                            text: "Как в теме";
+                            kind: "text";
+                            clicked => { root.reset(row.key); }
+                        }
+                        Rectangle {
+                            width: 56px;
+                            height: 32px;
+                            border-radius: Theme.radius-s;
+                            background: row.c;
+                            border-width: 1px;
+                            border-color: Theme.outline;
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    Ui.color-target = row.key;
+                                    Ui.dialog = 6;
+                                }
+                            }
+                        }
+                    }
+                    Text { text: "Скругление"; color: Theme.on-surface; font-size: 14px; }
+                    Segmented {
+                        items: ["Как в теме", "Острое", "Мягкое", "Круглое"];
+                        controlled: true;
+                        selected: Theme.c-radius == 0 ? 0 : Theme.c-radius < 8px ? 1 : Theme.c-radius < 20px ? 2 : 3;
+                        changed(i) => {
+                            Theme.c-radius = i == 0 ? 0px : i == 1 ? 4px : i == 2 ? 14px : 26px;
+                            Backend.settings-changed();
+                        }
+                    }
+                    Text { text: "Шрифт"; color: Theme.on-surface; font-size: 14px; }
+                    Segmented {
+                        items: ["Как в теме", "Onest", "Google Sans", "Plex Mono", "Lora", "Свой"];
+                        controlled: true;
+                        selected: Theme.c-font == "" ? 0 : Theme.c-font == "Onest" ? 1 : Theme.c-font == "Google Sans Flex" ? 2
+                            : Theme.c-font == "IBM Plex Mono" ? 3 : Theme.c-font == "Lora" ? 4 : 5;
+                        changed(i) => {
+                            if i == 5 {
+                                Backend.font-pick();
+                            } else {
+                                Theme.c-font = i == 0 ? "" : i == 1 ? "Onest" : i == 2 ? "Google Sans Flex" : i == 3 ? "IBM Plex Mono" : "Lora";
+                                Backend.settings-changed();
+                            }
+                        }
+                    }
+                    if Backend.font-file != "": Text {
+                        text: "Свой шрифт: " + Backend.font-file + (Theme.c-font == "" || Theme.c-font == "Onest" || Theme.c-font == "Google Sans Flex"
+                            || Theme.c-font == "IBM Plex Mono" || Theme.c-font == "Lora" ? " (выберите \"Свой\", чтобы включить)" : "");
+                        color: Theme.on-surface-variant;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                    Text { text: "Картинка фона"; color: Theme.on-surface; font-size: 14px; }
+                    for slot in [
+                        { key: "main", name: "Окно", img: Theme.bg-main },
+                        { key: "panel", name: "Панель навигации", img: Theme.bg-panel },
+                    ]: HorizontalLayout {
+                        spacing: 12px;
+                        Rectangle {
+                            width: 56px;
+                            height: 36px;
+                            border-radius: Theme.radius-s;
+                            clip: true;
+                            background: Theme.surface-high;
+                            border-width: 1px;
+                            border-color: Theme.outline;
+                            Image {
+                                width: parent.width;
+                                height: parent.height;
+                                source: slot.img;
+                                image-fit: cover;
+                            }
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                            text: slot.name;
+                            color: Theme.on-surface;
+                            font-size: 14px;
+                        }
+                        if slot.img.width > 0: Btn { text: "Убрать"; kind: "text"; clicked => { Backend.bg-clear(slot.key); } }
+                        Btn { text: "Выбрать"; kind: "tonal"; clicked => { Backend.bg-pick(slot.key); } }
+                    }
+                    if Theme.bg-main.width > 0 || Theme.bg-panel.width > 0: Text { text: "Затемнение картинки"; color: Theme.on-surface; font-size: 14px; }
+                    if Theme.bg-main.width > 0 || Theme.bg-panel.width > 0: Segmented {
+                        items: ["Нет", "Слабое", "Среднее", "Сильное"];
+                        controlled: true;
+                        selected: Theme.bg-dim < 0.1 ? 0 : Theme.bg-dim < 0.35 ? 1 : Theme.bg-dim < 0.6 ? 2 : 3;
+                        changed(i) => {
+                            Theme.bg-dim = i == 0 ? 0 : i == 1 ? 0.25 : i == 2 ? 0.5 : 0.75;
+                            Backend.settings-changed();
+                        }
+                    }
+                    if Backend.style-files.length > 0: Text { text: "Стили из файлов"; color: Theme.on-surface; font-size: 14px; }
+                    if Backend.style-files.length > 0: HorizontalLayout {
+                        alignment: start;
+                        spacing: 8px;
+                        for name[i] in Backend.style-files: Chip {
+                            text: name;
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { Backend.style-load(i); }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: 8px;
+                        Btn { text: "Сохранить в файл"; kind: "tonal"; clicked => { Backend.style-save(); } }
+                        Btn { text: "Папка стилей"; kind: "outline"; clicked => { Backend.open-folder("themes"); } }
+                        Btn { text: "Обновить"; kind: "text"; clicked => { Backend.styles-reload(); } }
                     }
                 }
             }
@@ -711,6 +902,7 @@ component Nav inherits HorizontalLayout {
     if !Theme.sidebar && !Theme.classic: Rectangle {
         width: 92px;
         background: Theme.classic ? transparent : Theme.m3e ? Theme.background : Theme.surface;
+        BgImage { width: parent.width; height: parent.height; source: Theme.bg-panel; }
         VerticalLayout {
             padding-top: 20px;
             padding-bottom: 16px;
@@ -756,6 +948,7 @@ component Nav inherits HorizontalLayout {
     if Theme.sidebar: Rectangle {
         width: 220px;
         background: Theme.warm ? Theme.surface : Theme.background;
+        BgImage { width: parent.width; height: parent.height; source: Theme.bg-panel; }
         Rectangle {
             x: Theme.nav-right ? 0px : parent.width - 1px;
             width: 1px;
@@ -822,6 +1015,7 @@ export component AppWindow inherits Window {
                 border-radius: Theme.m3e ? Theme.radius-l : 0px;
                 background: Theme.m3e ? Theme.surface : transparent;
                 clip: true;
+                BgImage { width: parent.width; height: parent.height; source: Theme.bg-main; }
                 // страницы стоят в ряд и сдвигаются, как слайдер в Zust 2
                 slider := Rectangle {
                     property <length> w: parent.width;
@@ -922,6 +1116,7 @@ export component AppWindow inherits Window {
     ListsDialog { }
     AboutDialog { }
     TestDialog { }
+    ColorDialog { }
 
     // "Классика": выбор стратегии в модальном окне, как в Zust 2
     if Theme.classic: StrategyModal { open: Ui.picker; }

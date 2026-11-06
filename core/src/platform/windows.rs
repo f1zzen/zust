@@ -130,14 +130,19 @@ pub fn set_autostart(enabled: bool) -> Result<(), String> {
     }
 }
 
+/// HKCU важнее HKLM: перезаписываем и запись, оставшуюся от Zust 2.
 pub fn register_url_protocol() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let hkcr = RegKey::predef(HKEY_CLASSES_ROOT);
-    let (key, _) = hkcr.create_subkey("zust").map_err(|e| e.to_string())?;
+    let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
+        .create_subkey(r"Software\Classes\zust")
+        .map_err(|e| e.to_string())?;
     key.set_value("", &"URL:Z.UST Protocol")
         .map_err(|e| e.to_string())?;
     key.set_value("URL Protocol", &"")
         .map_err(|e| e.to_string())?;
+    if let Ok((icon, _)) = key.create_subkey("DefaultIcon") {
+        let _ = icon.set_value("", &format!("\"{}\",0", exe.display()));
+    }
     let (cmd, _) = key
         .create_subkey(r"shell\open\command")
         .map_err(|e| e.to_string())?;

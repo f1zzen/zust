@@ -40,7 +40,7 @@ fn rt() -> &'static tokio::runtime::Runtime {
     })
 }
 
-fn spawn<F: std::future::Future<Output = ()> + Send + 'static>(f: F) {
+pub fn spawn<F: std::future::Future<Output = ()> + Send + 'static>(f: F) {
     rt().spawn(f);
 }
 
@@ -452,11 +452,11 @@ fn connect_extras(ui: &AppWindow) {
     });
 
     be.on_open_folder(|kind| {
-        let sub = match kind.as_str() {
-            "strategies" | "ipset-configs" | "lists" => kind.to_string(),
+        let path = match kind.as_str() {
+            "strategies" | "ipset-configs" | "lists" => Zapret::path(&kind),
+            "themes" => crate::styles::dir(),
             _ => return,
         };
-        let path = Zapret::path(&sub);
         let _ = std::fs::create_dir_all(&path);
         if let Err(e) = open::that_detached(&path) {
             log(format!("Не удалось открыть папку: {e}"));

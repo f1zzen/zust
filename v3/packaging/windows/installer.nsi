@@ -1,5 +1,5 @@
-; Установщик Z.UST для Windows. Сборка:
-;   makensis -DVERSION=3.0.0 -DSRC=<папка с Z.UST.exe, zapret, tor, frp> -DOUT=Z.UST-setup.exe installer.nsi
+﻿; Установщик Z.UST для Windows. Сборка:
+;   makensis -INPUTCHARSET UTF8 -DVERSION=3.0.0 -DSRC=<папка с Z.UST.exe, zapret, tor, frp> -DOUT=Z.UST-setup.exe installer.nsi
 ; Ставит в Program Files, создаёт ярлыки, тихо удаляет Zust 2 (настройки остаются).
 
 Unicode true
@@ -109,6 +109,11 @@ Section "${APP}" SecApp
   File /r "${SRC}\frp"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
+  ; ссылки zust://, в том числе поверх записи Zust 2
+  WriteRegStr HKCU "Software\Classes\zust" "" "URL:Z.UST Protocol"
+  WriteRegStr HKCU "Software\Classes\zust" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\zust\DefaultIcon" "" '"$INSTDIR\Z.UST.exe",0'
+  WriteRegStr HKCU "Software\Classes\zust\shell\open\command" "" '"$INSTDIR\Z.UST.exe" "%1"'
   SetShellVarContext all
   CreateShortcut "$SMPROGRAMS\${APP}.lnk" "$INSTDIR\Z.UST.exe" "" "$INSTDIR\icon.ico"
 
@@ -141,6 +146,7 @@ Section "Uninstall"
   nsExec::Exec 'sc delete WinDivert'
   nsExec::Exec 'schtasks /Delete /TN Zust /F'
   DeleteRegKey HKCR "zust"
+  DeleteRegKey HKCU "Software\Classes\zust"
 
   SetShellVarContext all
   Delete "$SMPROGRAMS\${APP}.lnk"
